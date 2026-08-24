@@ -25,17 +25,21 @@ export interface Route {
 }
 
 export type PaymentType = 'MONTHLY_ADVANCE' | 'DAILY_CASH' | 'WEEKLY';
+export type CustomerCategory = 'RESIDENTIAL' | 'BULK_ORDER';
 
 export interface Customer {
   id: string;
   customer_code: string; // e.g. C001
   name: string;
   phone: string;
-  house_number: string; // e.g. A-103
+  house_number: string; // e.g. A-103 or Building
   location: string; // e.g. Orchid Enclave
   route_id: string;
   delivery_boy_id: string;
   payment_type: PaymentType;
+  customer_category?: CustomerCategory; // RESIDENTIAL | BULK_ORDER
+  establishment_type?: string; // Hotel, Restaurant, School, Caterer, Office, Canteen
+  is_bulk_order?: boolean; // If true, delivery charge is ₹0
   status: 'ACTIVE' | 'INACTIVE';
   notes?: string;
   created_at: string;

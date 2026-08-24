@@ -569,7 +569,9 @@ class Store {
       return { delivery: existing, items: this.getDeliveryItems(existing.id), isDuplicate: true };
     }
 
-    const totals = calculateDeliveryTotals(packetEntries, this.data.products);
+    const customer = this.getCustomerById(customerId);
+    const isBulk = customer?.customer_category === 'BULK_ORDER' || customer?.is_bulk_order;
+    const totals = calculateDeliveryTotals(packetEntries, this.data.products, !!isBulk);
     const now = new Date().toISOString();
 
     const deliveryId = existingDeliveryId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'd' + Math.random().toString(36).substr(2, 8) + '-0000-0000-0000-000000000000');
@@ -921,6 +923,17 @@ class Store {
       created_at: new Date().toISOString(),
     };
     this.data.auditLogs.push(log);
+  }
+
+  // --- Signature Image ---
+  public getSignatureImage(): string | null {
+    return (this.data as any).signatureImage || null;
+  }
+
+  public setSignatureImage(imageUrl: string | null) {
+    (this.data as any).signatureImage = imageUrl;
+    this.saveToStorage();
+    this.notify();
   }
 }
 

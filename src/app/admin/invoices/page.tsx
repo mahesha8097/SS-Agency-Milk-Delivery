@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
 import { MonthlyInvoice, Customer } from '@/lib/types';
-import { FileText, Printer, RefreshCw, Eye, X, CheckCircle, Download } from 'lucide-react';
+import { FileText, Printer, RefreshCw, Eye, X, Upload, CheckCircle2 } from 'lucide-react';
 
 export default function AdminInvoicesPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -14,23 +14,39 @@ export default function AdminInvoicesPage() {
   const [invoices, setInvoices] = useState<MonthlyInvoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [viewInvoice, setViewInvoice] = useState<MonthlyInvoice | null>(null);
+  const [signatureImage, setSignatureImage] = useState<string | null>(null);
 
   const reload = () => {
     setInvoices(store.getInvoices(selectedMonth));
     setCustomers(store.getCustomers());
+    setSignatureImage(store.getSignatureImage());
   };
 
   useEffect(() => {
     reload();
     const unsub = store.subscribe(reload);
-    return () => { unsub(); };
+    return () => {
+      unsub();
+    };
   }, [selectedMonth]);
-
 
   const handleGenerateInvoices = () => {
     const generated = store.generateMonthlyBills(selectedMonth);
     alert(`Successfully generated ${generated.length} invoices for ${selectedMonth}!`);
     reload();
+  };
+
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setSignatureImage(base64);
+        store.setSignatureImage(base64);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const customerMap = new Map(customers.map((c) => [c.id, c]));
@@ -47,11 +63,45 @@ export default function AdminInvoicesPage() {
     <Navigation>
       <main className="max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
 
+        {/* Global Print Styles for Single Page Printing */}
+        <style jsx global>{`
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 6mm;
+            }
+            body {
+              background: white !important;
+              color: black !important;
+              font-size: 11px !important;
+            }
+            nav, header, button, .no-print {
+              display: none !important;
+            }
+            .printable-invoice {
+              border: none !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+              width: 100% !important;
+              max-height: 98vh !important;
+              overflow: hidden !important;
+              page-break-inside: avoid !important;
+              page-break-after: avoid !important;
+            }
+            .fixed {
+              position: static !important;
+              background: white !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+          }
+        `}</style>
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-slate-900">Monthly Bills & Invoices</h2>
             <p className="text-xs md:text-sm text-slate-500">
-              Generate monthly customer billing statements, advance deductions, and printable invoices
+              Generate monthly billing statements, advance deductions, and single-sheet printable invoices
             </p>
           </div>
 
@@ -165,16 +215,22 @@ export default function AdminInvoicesPage() {
         {/* Invoice View & Print Modal */}
         {viewInvoice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-            <div className="bg-white rounded-xl shadow-xl max-w-xl w-full p-6 space-y-4 max-h-[95vh] overflow-y-auto">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 no-print">
-                <h3 className="font-bold text-slate-900 text-base">Invoice Preview</h3>
+            <div className="bg-white rounded-xl shadow-xl max-w-xl w-full p-5 space-y-3 max-h-[95vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 no-print">
+                <h3 className="font-bold text-slate-900 text-base">Invoice Preview (Single Sheet Print)</h3>
                 <div className="flex items-center space-x-2">
+                  <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1">
+                    <Upload className="w-3.5 h-3.5 text-nandini-blue" />
+                    <span>Upload Signature</span>
+                    <input type="file" accept="image/*" onChange={handleSignatureUpload} className="hidden" />
+                  </label>
+
                   <button
                     onClick={handlePrintInvoice}
-                    className="bg-nandini-blue text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1"
+                    className="bg-nandini-blue text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1 shadow-xs"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>Print Invoice</span>
+                    <span>Print Bill (1 Sheet)</span>
                   </button>
                   <button onClick={() => setViewInvoice(null)} className="p-1 text-slate-400 hover:text-slate-600">
                     <X className="w-5 h-5" />
@@ -182,27 +238,27 @@ export default function AdminInvoicesPage() {
                 </div>
               </div>
 
-              {/* Printable Invoice Container */}
-              <div className="printable-invoice p-6 border border-slate-300 rounded-lg space-y-4 text-xs md:text-sm bg-white text-slate-900">
+              {/* Printable Invoice Container (Fits 1 Sheet) */}
+              <div className="printable-invoice p-5 border border-slate-300 rounded-lg space-y-3 text-xs bg-white text-slate-900">
                 {/* Invoice Header */}
-                <div className="text-center border-b border-slate-300 pb-4">
+                <div className="text-center border-b border-slate-300 pb-3">
                   <h1 className="text-xl font-black tracking-tight text-nandini-blue uppercase">S.S AGENCY</h1>
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">NANDINI MILK & DAIRY PRODUCTS</p>
-                  <p className="text-[11px] text-slate-500">Morning Door-to-Door Delivery Service</p>
+                  <p className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">NANDINI MILK & DAIRY PRODUCTS</p>
+                  <p className="text-[10px] text-slate-500">Morning Door-to-Door Delivery Service</p>
                 </div>
 
                 {/* Customer Info */}
-                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded border border-slate-200">
+                <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-2.5 rounded border border-slate-200">
                   <div>
-                    <div className="text-slate-500 font-semibold uppercase text-[10px]">Customer Details</div>
+                    <div className="text-slate-500 font-semibold uppercase text-[9px]">Customer Details</div>
                     <div className="font-bold text-sm text-slate-900">{customerMap.get(viewInvoice.customer_id)?.name}</div>
-                    <div>House: <b>{customerMap.get(viewInvoice.customer_id)?.house_number}</b></div>
+                    <div>Premises: <b>{customerMap.get(viewInvoice.customer_id)?.house_number}</b></div>
                     <div>Location: {customerMap.get(viewInvoice.customer_id)?.location}</div>
                     <div>Code: {customerMap.get(viewInvoice.customer_id)?.customer_code}</div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-slate-500 font-semibold uppercase text-[10px]">Invoice Info</div>
+                    <div className="text-slate-500 font-semibold uppercase text-[9px]">Invoice Info</div>
                     <div className="font-mono font-bold text-nandini-blue">{viewInvoice.invoice_number}</div>
                     <div>Month: <b>{viewInvoice.month_year}</b></div>
                     <div>Generated: {new Date(viewInvoice.generated_at).toLocaleDateString('en-IN')}</div>
@@ -211,14 +267,14 @@ export default function AdminInvoicesPage() {
 
                 {/* Delivered Line Items Table */}
                 <div>
-                  <div className="font-bold text-xs uppercase text-slate-700 mb-1">Delivered Product Breakdown</div>
+                  <div className="font-bold text-[11px] uppercase text-slate-700 mb-1">Delivered Product Breakdown</div>
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-300 bg-slate-100 font-bold">
-                        <th className="py-1.5 px-2">Product</th>
-                        <th className="py-1.5 px-2 text-center">Packets</th>
-                        <th className="py-1.5 px-2 text-right">Rate</th>
-                        <th className="py-1.5 px-2 text-right">Amount</th>
+                        <th className="py-1 px-2">Product</th>
+                        <th className="py-1 px-2 text-center">Packets</th>
+                        <th className="py-1 px-2 text-right">Rate</th>
+                        <th className="py-1 px-2 text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -249,16 +305,16 @@ export default function AdminInvoicesPage() {
                 </div>
 
                 {/* Calculation Summary Block */}
-                <div className="border-t border-slate-300 pt-3 space-y-1.5 text-xs text-right">
+                <div className="border-t border-slate-300 pt-2 space-y-1 text-xs text-right">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Product Subtotal:</span>
                     <span className="font-semibold text-slate-800">₹{viewInvoice.total_product_amount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">Delivery Charges (Milk Vol Tier):</span>
+                    <span className="text-slate-600">Delivery Charges:</span>
                     <span className="font-semibold text-nandini-accent">₹{viewInvoice.total_delivery_charges.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between font-bold text-sm border-t border-slate-200 pt-1">
+                  <div className="flex justify-between font-bold text-xs border-t border-slate-200 pt-1">
                     <span>Grand Total:</span>
                     <span>₹{viewInvoice.grand_total.toFixed(2)}</span>
                   </div>
@@ -266,15 +322,32 @@ export default function AdminInvoicesPage() {
                     <span>Less: Advance Payments / Credit:</span>
                     <span className="font-bold">- ₹{viewInvoice.advance_paid.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between font-extrabold text-base border-t-2 border-slate-900 pt-2 text-slate-900">
+                  <div className="flex justify-between font-extrabold text-sm border-t-2 border-slate-900 pt-1 text-slate-900">
                     <span>NET AMOUNT PAYABLE:</span>
                     <span className="text-nandini-blue">₹{viewInvoice.amount_payable.toFixed(2)}</span>
                   </div>
                 </div>
 
-                {/* Invoice Footer */}
-                <div className="text-center pt-4 border-t border-slate-300 text-xs text-slate-500 font-medium">
-                  Thank you for choosing S.S Agency Nandini Milk Service!
+                {/* Signature Box */}
+                <div className="flex items-end justify-between pt-3 border-t border-slate-300">
+                  <div className="text-left text-[10px] text-slate-500 font-medium">
+                    <div>Thank you for choosing S.S Agency!</div>
+                    <div className="text-[9px] text-slate-400">Nandini Door-to-Door Milk Service</div>
+                  </div>
+
+                  <div className="text-center space-y-1">
+                    {signatureImage ? (
+                      <img src={signatureImage} alt="Authorized Signature" className="h-10 w-auto max-w-[140px] mx-auto object-contain" />
+                    ) : (
+                      <div className="h-8 border-b border-dashed border-slate-400 w-32 mx-auto flex items-center justify-center text-[9px] text-slate-400">
+                        [ Signature Placeholder ]
+                      </div>
+                    )}
+                    <div className="text-[10px] font-bold text-slate-900 border-t border-slate-300 pt-0.5 px-2">
+                      Authorized Signatory
+                    </div>
+                    <div className="text-[9px] text-slate-500">S.S Agency</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -284,4 +357,3 @@ export default function AdminInvoicesPage() {
     </Navigation>
   );
 }
-

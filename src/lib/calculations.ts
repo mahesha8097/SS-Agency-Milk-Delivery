@@ -57,7 +57,8 @@ export function calculateDeliveryCharge(totalVolumeLitres: number): number {
  */
 export function calculateDeliveryTotals(
   entries: PacketEntry[],
-  products: Product[]
+  products: Product[],
+  isBulkOrder: boolean = false
 ): CalculatedDeliverySummary {
   const productMap = new Map(products.map((p) => [p.id, p]));
   
@@ -101,7 +102,8 @@ export function calculateDeliveryTotals(
   const totalVolumeLitres = Math.round((totalMilkLitres + totalCurdLitres) * 100) / 100;
   productTotal = Math.round(productTotal * 100) / 100;
 
-  const deliveryCharge = calculateDeliveryCharge(totalVolumeLitres);
+  // Bulk orders (Hotels, Restaurants, Schools, etc.) have 0 delivery charge
+  const deliveryCharge = isBulkOrder ? 0 : calculateDeliveryCharge(totalVolumeLitres);
   const grandTotal = Math.round((productTotal + deliveryCharge) * 100) / 100;
 
   return {
