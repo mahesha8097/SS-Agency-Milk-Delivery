@@ -181,8 +181,8 @@ class Store {
     );
     if (!user) return null;
 
-    // Check saved password if set
-    if (user.password && password !== user.password) {
+    const expectedPassword = user.password || (user.username === 'admin' ? 'admin123' : user.username === 'boy1' ? 'boy123' : 'boy223');
+    if (password && password !== expectedPassword) {
       return null;
     }
 
@@ -190,6 +190,23 @@ class Store {
     this.saveToStorage();
     this.notify();
     return user;
+  }
+
+  public resetPassword(usernameOrPhone: string, newPassword: string): boolean {
+    const cleanInput = usernameOrPhone.trim().toLowerCase();
+    const user = this.data.users.find(
+      (u) =>
+        (u.username?.toLowerCase() === cleanInput || u.phone?.replace(/\D/g, '') === cleanInput.replace(/\D/g, '')) &&
+        u.status === 'ACTIVE'
+    );
+    if (!user) return false;
+
+    user.password = newPassword;
+    user.updated_at = new Date().toISOString();
+    this.data.users = this.data.users.map((u) => (u.id === user.id ? { ...u, password: newPassword } : u));
+    this.saveToStorage();
+    this.notify();
+    return true;
   }
 
   public loginByPhone(phone: string, role: 'ADMIN' | 'DELIVERY_BOY'): AppUser | null {
