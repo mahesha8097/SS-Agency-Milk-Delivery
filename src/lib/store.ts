@@ -32,43 +32,45 @@ export interface StoreData {
   currentUser: AppUser | null;
 }
 
-// Initial Sample Seed Data
+// Initial Sample Seed Data with Valid Hexadecimal PostgreSQL UUIDs
 export const INITIAL_PRODUCTS: Product[] = [
-  { id: 'p1', product_code: 'BM1', name: 'Blue Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 44, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'p2', product_code: 'BM5', name: 'Blue Milk 500ml', category: 'MILK', packet_size_ml: 500, price: 23, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'p3', product_code: 'OM1', name: 'Orange Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 52, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'p4', product_code: 'OM5', name: 'Orange Milk 500ml', category: 'MILK', packet_size_ml: 500, price: 27, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'p5', product_code: 'SM1', name: 'Special Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 48, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'p6', product_code: 'SM5', name: 'Special Milk 500ml', category: 'MILK', packet_size_ml: 500, price: 25, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'p7', product_code: 'CD1', name: 'Curd 1L', category: 'CURD', packet_size_ml: 1000, price: 55, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000001', product_code: 'BM1', name: 'Blue Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 44, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000002', product_code: 'BM5', name: 'Blue Milk 500ml', category: 'MILK', packet_size_ml: 500, price: 23, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000003', product_code: 'OM1', name: 'Orange Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 52, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000004', product_code: 'OM5', name: 'Orange Milk 500ml', category: 'MILK', packet_size_ml: 500, price: 27, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000005', product_code: 'SM1', name: 'Special Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 48, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000006', product_code: 'SM5', name: 'Special Milk 500ml', category: 'MILK', packet_size_ml: 500, price: 25, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '20000000-0000-0000-0000-000000000007', product_code: 'CD1', name: 'Curd 1L', category: 'CURD', packet_size_ml: 1000, price: 55, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export const INITIAL_USERS: AppUser[] = [
-  { id: 'u-admin', name: 'S.S Agency Admin', phone: '9876543210', role: 'ADMIN', status: 'ACTIVE', username: 'admin', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'u-dboy1', name: 'Delivery Boy 1 (Ramesh)', phone: '9876543211', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'u-dboy2', name: 'Delivery Boy 2 (Suresh)', phone: '9876543212', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy2', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '30000000-0000-0000-0000-000000000001', name: 'S.S Agency Admin', phone: '9876543210', role: 'ADMIN', status: 'ACTIVE', username: 'admin', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '30000000-0000-0000-0000-000000000002', name: 'Delivery Boy 1 (Ramesh)', phone: '9876543211', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '30000000-0000-0000-0000-000000000003', name: 'Delivery Boy 2 (Suresh)', phone: '9876543212', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy2', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export const INITIAL_ROUTES: Route[] = [
-  { id: 'r1', name: 'Route 1 - Orchid Enclave & Janapriya', description: 'Includes Orchid Enclave and Janapriya apartments', assigned_delivery_boy_id: 'u-dboy1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'r2', name: 'Route 2 - Wasthoboomi Sunshine', description: 'Includes Wasthoboomi Sunshine complex', assigned_delivery_boy_id: 'u-dboy2', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '40000000-0000-0000-0000-000000000001', name: 'Route 1 - Orchid Enclave & Janapriya', description: 'Includes Orchid Enclave and Janapriya apartments', assigned_delivery_boy_id: '30000000-0000-0000-0000-000000000002', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '40000000-0000-0000-0000-000000000002', name: 'Route 2 - Wasthoboomi Sunshine', description: 'Includes Wasthoboomi Sunshine complex', assigned_delivery_boy_id: '30000000-0000-0000-0000-000000000003', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [
-  { id: 'c1', customer_code: 'C001', name: 'Ravi Kumar', phone: '9845012345', house_number: 'A-103', location: 'Orchid Enclave', route_id: 'r1', delivery_boy_id: 'u-dboy1', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', notes: 'Leave at front door box', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'c2', customer_code: 'C002', name: 'Suresh Gowda', phone: '9845012346', house_number: 'B-204', location: 'Janapriya', route_id: 'r1', delivery_boy_id: 'u-dboy1', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'c3', customer_code: 'C003', name: 'Priya Sharma', phone: '9845012347', house_number: 'C-305', location: 'Wasthoboomi Sunshine', route_id: 'r2', delivery_boy_id: 'u-dboy2', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 'c4', customer_code: 'C004', name: 'Mahesh Reddy', phone: '9845012348', house_number: 'D-401', location: 'Wasthoboomi Sunshine', route_id: 'r2', delivery_boy_id: 'u-dboy2', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000001', customer_code: 'C001', name: 'Ravi Kumar', phone: '9845012345', house_number: 'A-103', location: 'Orchid Enclave', route_id: '40000000-0000-0000-0000-000000000001', delivery_boy_id: '30000000-0000-0000-0000-000000000002', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', notes: 'Leave at front door box', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000002', customer_code: 'C002', name: 'Suresh Gowda', phone: '9845012346', house_number: 'B-204', location: 'Janapriya', route_id: '40000000-0000-0000-0000-000000000001', delivery_boy_id: '30000000-0000-0000-0000-000000000002', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000003', customer_code: 'C003', name: 'Priya Sharma', phone: '9845012347', house_number: 'C-305', location: 'Wasthoboomi Sunshine', route_id: '40000000-0000-0000-0000-000000000002', delivery_boy_id: '30000000-0000-0000-0000-000000000003', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000004', customer_code: 'C004', name: 'Mahesh Reddy', phone: '9845012348', house_number: 'D-401', location: 'Wasthoboomi Sunshine', route_id: '40000000-0000-0000-0000-000000000002', delivery_boy_id: '30000000-0000-0000-0000-000000000003', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export const INITIAL_CUSTOMER_PRODUCTS: CustomerProductRequirement[] = [
-  { id: 'cp1', customer_id: 'c1', product_id: 'p1', default_packets: 1, created_at: new Date().toISOString() }, // Blue 1L: 1
-  { id: 'cp2', customer_id: 'c1', product_id: 'p4', default_packets: 1, created_at: new Date().toISOString() }, // Orange 500ml: 1
-  { id: 'cp3', customer_id: 'c1', product_id: 'p7', default_packets: 1, created_at: new Date().toISOString() }, // Curd 1L: 1
-  { id: 'cp4', customer_id: 'c2', product_id: 'p2', default_packets: 2, created_at: new Date().toISOString() }, // Blue 500ml: 2
-  { id: 'cp5', customer_id: 'c3', product_id: 'p3', default_packets: 1, created_at: new Date().toISOString() }, // Orange 1L: 1
-  { id: 'cp6', customer_id: 'c4', product_id: 'p1', default_packets: 2, created_at: new Date().toISOString() }, // Blue 1L: 2
+  { id: '50000000-0000-0000-0000-000000000001', customer_id: '10000000-0000-0000-0000-000000000001', product_id: '20000000-0000-0000-0000-000000000001', default_packets: 1, created_at: new Date().toISOString() },
+  { id: '50000000-0000-0000-0000-000000000002', customer_id: '10000000-0000-0000-0000-000000000001', product_id: '20000000-0000-0000-0000-000000000004', default_packets: 1, created_at: new Date().toISOString() },
+  { id: '50000000-0000-0000-0000-000000000003', customer_id: '10000000-0000-0000-0000-000000000001', product_id: '20000000-0000-0000-0000-000000000007', default_packets: 1, created_at: new Date().toISOString() },
+  { id: '50000000-0000-0000-0000-000000000004', customer_id: '10000000-0000-0000-0000-000000000002', product_id: '20000000-0000-0000-0000-000000000002', default_packets: 2, created_at: new Date().toISOString() },
+  { id: '50000000-0000-0000-0000-000000000005', customer_id: '10000000-0000-0000-0000-000000000003', product_id: '20000000-0000-0000-0000-000000000003', default_packets: 1, created_at: new Date().toISOString() },
+  { id: '50000000-0000-0000-0000-000000000006', customer_id: '10000000-0000-0000-0000-000000000004', product_id: '20000000-0000-0000-0000-000000000001', default_packets: 2, created_at: new Date().toISOString() },
 ];
+
+
 
 class Store {
   private data: StoreData = {
@@ -372,7 +374,7 @@ class Store {
     const totals = calculateDeliveryTotals(packetEntries, this.data.products);
     const now = new Date().toISOString();
 
-    const deliveryId = existingDeliveryId || 'del-' + Math.random().toString(36).substr(2, 9);
+    const deliveryId = existingDeliveryId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'd' + Math.random().toString(36).substr(2, 8) + '-0000-0000-0000-000000000000');
 
     const deliveryRecord: DailyDelivery = {
       id: deliveryId,
@@ -395,8 +397,9 @@ class Store {
     };
 
     const newItems: DeliveryItem[] = totals.items.map((item) => ({
-      id: 'item-' + Math.random().toString(36).substr(2, 9),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'i' + Math.random().toString(36).substr(2, 8) + '-0000-0000-0000-000000000000',
       delivery_id: deliveryId,
+
       product_id: item.productId,
       product_name: item.productName,
       category: item.category,
