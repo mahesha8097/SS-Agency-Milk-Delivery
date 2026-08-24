@@ -16,7 +16,7 @@ import { calculateDeliveryTotals, calculateMonthlyInvoiceSummary } from './calcu
 import { queueOfflineDelivery, getPendingOfflineDeliveries, markDeliverySynced } from './offlineSync';
 import { supabase, isSupabaseConfigured } from './supabase';
 
-const STORAGE_KEY = 'ss_agency_store_v1';
+const STORAGE_KEY = 'ss_agency_store_v2_clean_uuid';
 
 export interface StoreData {
   users: AppUser[];
@@ -31,6 +31,7 @@ export interface StoreData {
   auditLogs: AuditLog[];
   currentUser: AppUser | null;
 }
+
 
 // Initial Sample Seed Data with Valid Hexadecimal PostgreSQL UUIDs
 export const INITIAL_PRODUCTS: Product[] = [
@@ -113,6 +114,9 @@ class Store {
 
   private loadFromStorage() {
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('ss_agency_store_v1');
+      }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -124,6 +128,7 @@ class Store {
       console.error('Failed to load local store', e);
     }
   }
+
 
   private saveToStorage() {
     try {
@@ -497,25 +502,19 @@ class Store {
 
       const { data: cloudDeliveries, error: delErr } = await supabase.from('daily_deliveries').select('*');
       if (!delErr && cloudDeliveries) {
-        const cloudMap = new Map(cloudDeliveries.map((d: any) => [d.idempotency_key || d.id, d]));
-        const localOnly = this.data.deliveries.filter((d) => !cloudMap.has(d.idempotency_key || d.id));
-        this.data.deliveries = [...cloudDeliveries, ...localOnly];
+        this.data.deliveries = cloudDeliveries;
         this.saveToStorage();
       }
 
       const { data: cloudItems, error: itemErr } = await supabase.from('delivery_items').select('*');
       if (!itemErr && cloudItems) {
-        const itemMap = new Map(cloudItems.map((i: any) => [i.id, i]));
-        const localOnlyItems = this.data.deliveryItems.filter((i) => !itemMap.has(i.id));
-        this.data.deliveryItems = [...cloudItems, ...localOnlyItems];
+        this.data.deliveryItems = cloudItems;
         this.saveToStorage();
       }
 
       const { data: cloudPayments, error: payErr } = await supabase.from('payments').select('*');
       if (!payErr && cloudPayments) {
-        const payMap = new Map(cloudPayments.map((p: any) => [p.id, p]));
-        const localOnlyPay = this.data.payments.filter((p) => !payMap.has(p.id));
-        this.data.payments = [...cloudPayments, ...localOnlyPay];
+        this.data.payments = cloudPayments;
         this.saveToStorage();
       }
 
@@ -524,6 +523,7 @@ class Store {
       console.error('Error fetching live cloud data from Supabase', e);
     }
   }
+
 
 
   private async ensureCloudBaseData() {
