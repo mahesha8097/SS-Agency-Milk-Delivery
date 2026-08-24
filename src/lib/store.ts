@@ -911,7 +911,12 @@ class Store {
     weekNumber: number = 1
   ): MonthlyInvoice[] {
     const bulkCustomers = this.data.customers.filter(
-      (c) => (c.customer_category === 'BULK_ORDER' || c.is_bulk_order) && c.status === 'ACTIVE'
+      (c) =>
+        (c.customer_category === 'BULK_ORDER' || c.is_bulk_order) &&
+        c.status === 'ACTIVE' &&
+        (c.bulk_billing_cycle === billingPeriod ||
+          (!c.bulk_billing_cycle &&
+            (billingPeriod === 'WEEKLY' ? c.payment_type === 'WEEKLY' : c.payment_type !== 'WEEKLY')))
     );
 
     const generated: MonthlyInvoice[] = [];

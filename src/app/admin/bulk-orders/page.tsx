@@ -29,6 +29,7 @@ export default function AdminBulkOrdersPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [cycleFilter, setCycleFilter] = useState<string>('ALL');
   const [showModal, setShowModal] = useState(false);
 
   // Form State
@@ -41,7 +42,8 @@ export default function AdminBulkOrdersPage() {
     location: '',
     route_id: '',
     delivery_boy_id: '',
-    payment_type: 'MONTHLY_ADVANCE' as PaymentType,
+    payment_type: 'WEEKLY' as PaymentType,
+    bulk_billing_cycle: 'WEEKLY' as 'WEEKLY' | 'MONTHLY',
     notes: '',
     default_products: {} as Record<string, number>,
   });
@@ -75,7 +77,8 @@ export default function AdminBulkOrdersPage() {
       location: '',
       route_id: routes[0]?.id || '',
       delivery_boy_id: deliveryBoys[0]?.id || '',
-      payment_type: 'MONTHLY_ADVANCE',
+      payment_type: 'WEEKLY',
+      bulk_billing_cycle: 'WEEKLY',
       notes: 'Bulk order account - ₹0 Delivery Charge',
       default_products: {},
     });
@@ -90,6 +93,10 @@ export default function AdminBulkOrdersPage() {
       prodMap[cp.product_id] = cp.default_packets;
     });
 
+    const currentCycle =
+      customer.bulk_billing_cycle ||
+      (customer.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY');
+
     setFormData({
       name: customer.name,
       establishment_type: customer.establishment_type || 'Hotel',
@@ -99,6 +106,7 @@ export default function AdminBulkOrdersPage() {
       route_id: customer.route_id,
       delivery_boy_id: customer.delivery_boy_id,
       payment_type: customer.payment_type,
+      bulk_billing_cycle: currentCycle,
       notes: customer.notes || '',
       default_products: prodMap,
     });
@@ -126,10 +134,11 @@ export default function AdminBulkOrdersPage() {
         location: formData.location || 'City Area',
         route_id: formData.route_id,
         delivery_boy_id: formData.delivery_boy_id,
-        payment_type: formData.payment_type,
+        payment_type: formData.bulk_billing_cycle === 'WEEKLY' ? 'WEEKLY' : formData.payment_type,
         customer_category: 'BULK_ORDER',
         establishment_type: formData.establishment_type,
         is_bulk_order: true,
+        bulk_billing_cycle: formData.bulk_billing_cycle,
         status: 'ACTIVE',
         notes: formData.notes,
       },
@@ -154,7 +163,11 @@ export default function AdminBulkOrdersPage() {
       c.location.toLowerCase().includes(searchTerm);
     const matchesType =
       typeFilter === 'ALL' || c.establishment_type === typeFilter;
-    return matchesSearch && matchesType;
+    const customerCycle =
+      c.bulk_billing_cycle || (c.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY');
+    const matchesCycle =
+      cycleFilter === 'ALL' || customerCycle === cycleFilter;
+    return matchesSearch && matchesType && matchesCycle;
   });
 
   const routeMap = new Map(routes.map((r) => [r.id, r.name]));
@@ -257,9 +270,20 @@ export default function AdminBulkOrdersPage() {
                   <div className="space-y-2">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-bold uppercase tracking-wider mb-1">
-                          {cust.establishment_type || 'Bulk Order'}
-                        </span>
+                        <div className="flex items-center space-x-1.5 mb-1">
+                          <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-bold uppercase tracking-wider">
+                            {cust.establishment_type || 'Bulk Order'}
+                          </span>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                              (cust.bulk_billing_cycle || (cust.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY')) === 'WEEKLY'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-purple-100 text-purple-800'
+                            }`}
+                          >
+                            {(cust.bulk_billing_cycle || (cust.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY')) === 'WEEKLY' ? 'Weekly Bill' : 'Monthly Bill'}
+                          </span>
+                        </div>
                         <h3 className="font-bold text-base text-slate-900 leading-tight">
                           {cust.name}
                         </h3>
@@ -348,6 +372,67 @@ export default function AdminBulkOrdersPage() {
 
               <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
+                  <div className="sm:col-span-2 bg-blue-50 p-3 rounded-xl border border-blue-200">
+                    <label className="block font-bold text-nandini-blue uppercase text-[11px] mb-1.5">
+                      Billing Schedule & Payment Frequency *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <label
+                        className={`flex items-start space-x-2 p-2.5 rounded-lg border cursor-pointer transition ${
+                          formData.bulk_billing_cycle === 'WEEKLY'
+                            ? 'bg-white border-nandini-blue font-bold text-nandini-blue shadow-xs'
+                            : 'bg-white/60 border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="bulk_billing_cycle"
+                          value="WEEKLY"
+                          checked={formData.bulk_billing_cycle === 'WEEKLY'}
+                          onChange={() =>
+                            setFormData({
+                              ...formData,
+                              bulk_billing_cycle: 'WEEKLY',
+                              payment_type: 'WEEKLY',
+                            })
+                          }
+                          className="mt-0.5 text-nandini-blue focus:ring-nandini-blue"
+                        />
+                        <div>
+                          <div>Weekly Bill & Payment</div>
+                          <div className="text-[10px] text-slate-500 font-normal mt-0.5">Billed every 7 days (Week 1, 2, 3, 4)</div>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`flex items-start space-x-2 p-2.5 rounded-lg border cursor-pointer transition ${
+                          formData.bulk_billing_cycle === 'MONTHLY'
+                            ? 'bg-white border-nandini-blue font-bold text-nandini-blue shadow-xs'
+                            : 'bg-white/60 border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="bulk_billing_cycle"
+                          value="MONTHLY"
+                          checked={formData.bulk_billing_cycle === 'MONTHLY'}
+                          onChange={() =>
+                            setFormData({
+                              ...formData,
+                              bulk_billing_cycle: 'MONTHLY',
+                              payment_type: 'MONTHLY_ADVANCE',
+                            })
+                          }
+                          className="mt-0.5 text-nandini-blue focus:ring-nandini-blue"
+                        />
+                        <div>
+                          <div>Monthly Bill & Payment</div>
+                          <div className="text-[10px] text-slate-500 font-normal mt-0.5">Billed once a month at month end</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block font-semibold text-slate-700 uppercase text-[11px] mb-1">
                       Establishment Type *

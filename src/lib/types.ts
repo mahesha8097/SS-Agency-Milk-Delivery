@@ -40,6 +40,7 @@ export interface Customer {
   customer_category?: CustomerCategory; // RESIDENTIAL | BULK_ORDER
   establishment_type?: string; // Hotel, Restaurant, School, Caterer, Office, Canteen
   is_bulk_order?: boolean; // If true, delivery charge is ₹0
+  bulk_billing_cycle?: 'WEEKLY' | 'MONTHLY'; // Billing schedule preference
   status: 'ACTIVE' | 'INACTIVE';
   notes?: string;
   created_at: string;
