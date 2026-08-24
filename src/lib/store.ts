@@ -905,6 +905,111 @@ class Store {
     return generated;
   }
 
+  public generateBulkBills(
+    billingPeriod: 'MONTHLY' | 'WEEKLY',
+    monthYear: string,
+    weekNumber: number = 1
+  ): MonthlyInvoice[] {
+    const bulkCustomers = this.data.customers.filter(
+      (c) => (c.customer_category === 'BULK_ORDER' || c.is_bulk_order) && c.status === 'ACTIVE'
+    );
+
+    const generated: MonthlyInvoice[] = [];
+
+    const year = parseInt(monthYear.slice(0, 4));
+    const month = parseInt(monthYear.slice(5, 7));
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    let dateStartStr = `${monthYear}-01`;
+    let dateEndStr = `${monthYear}-${daysInMonth.toString().padStart(2, '0')}`;
+    let periodLabel = `${new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })}`;
+    let keySuffix = monthYear;
+
+    if (billingPeriod === 'WEEKLY') {
+      if (weekNumber === 1) {
+        dateStartStr = `${monthYear}-01`;
+        dateEndStr = `${monthYear}-07`;
+        periodLabel = `Week 1 (1-7 ${new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'short' })} ${year})`;
+        keySuffix = `${monthYear}-W1`;
+      } else if (weekNumber === 2) {
+        dateStartStr = `${monthYear}-08`;
+        dateEndStr = `${monthYear}-14`;
+        periodLabel = `Week 2 (8-14 ${new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'short' })} ${year})`;
+        keySuffix = `${monthYear}-W2`;
+      } else if (weekNumber === 3) {
+        dateStartStr = `${monthYear}-15`;
+        dateEndStr = `${monthYear}-21`;
+        periodLabel = `Week 3 (15-21 ${new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'short' })} ${year})`;
+        keySuffix = `${monthYear}-W3`;
+      } else {
+        dateStartStr = `${monthYear}-22`;
+        dateEndStr = `${monthYear}-${daysInMonth.toString().padStart(2, '0')}`;
+        periodLabel = `Week 4 (22-${daysInMonth} ${new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'short' })} ${year})`;
+        keySuffix = `${monthYear}-W4`;
+      }
+    }
+
+    for (const customer of bulkCustomers) {
+      const periodDeliveries = this.data.deliveries.filter(
+        (d) =>
+          d.customer_id === customer.id &&
+          d.delivery_date >= dateStartStr &&
+          d.delivery_date <= dateEndStr
+      );
+
+      const periodPayments = this.data.payments.filter(
+        (p) =>
+          p.customer_id === customer.id &&
+          p.payment_date >= dateStartStr &&
+          p.payment_date <= dateEndStr
+      );
+
+      const totalProductAmount = periodDeliveries.reduce((sum, d) => sum + d.product_total, 0);
+      const totalDeliveryCharges = 0; // Zero delivery charges for bulk orders
+      const grandTotal = totalProductAmount;
+      const advancePaid = periodPayments.reduce((sum, p) => sum + p.amount, 0);
+      const amountPayable = Math.max(0, grandTotal - advancePaid);
+
+      const invoiceNum = `BLK-${billingPeriod === 'WEEKLY' ? `W${weekNumber}` : 'M'}-${customer.customer_code}-${monthYear.replace('-', '')}`;
+
+      const existingIdx = this.data.invoices.findIndex(
+        (inv) => inv.customer_id === customer.id && inv.month_year === keySuffix
+      );
+
+      const invoiceRecord: MonthlyInvoice = {
+        id: existingIdx >= 0 ? this.data.invoices[existingIdx].id : 'inv-blk-' + Math.random().toString(36).substr(2, 9),
+        invoice_number: invoiceNum,
+        customer_id: customer.id,
+        month_year: keySuffix,
+        billing_period: billingPeriod,
+        period_label: periodLabel,
+        date_start: dateStartStr,
+        date_end: dateEndStr,
+        total_product_amount: totalProductAmount,
+        total_delivery_charges: 0,
+        grand_total: grandTotal,
+        previous_balance_credit: 0,
+        advance_paid: advancePaid,
+        amount_payable: amountPayable,
+        status: amountPayable <= 0 ? 'PAID' : 'GENERATED',
+        generated_at: new Date().toISOString(),
+      };
+
+      if (existingIdx >= 0) {
+        this.data.invoices[existingIdx] = invoiceRecord;
+      } else {
+        this.data.invoices.push(invoiceRecord);
+      }
+
+      generated.push(invoiceRecord);
+    }
+
+    this.logAudit('BULK_INVOICES_GENERATED', 'INVOICE', keySuffix, { count: generated.length, period: billingPeriod });
+    this.saveToStorage();
+    this.notify();
+    return generated;
+  }
+
   // --- Audit Logs ---
   public getAuditLogs(): AuditLog[] {
     return this.data.auditLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

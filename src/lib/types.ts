@@ -124,11 +124,17 @@ export interface Payment {
   created_at: string;
 }
 
+export type BillingPeriod = 'MONTHLY' | 'WEEKLY';
+
 export interface MonthlyInvoice {
   id: string;
   invoice_number: string;
   customer_id: string;
-  month_year: string; // YYYY-MM
+  month_year: string; // YYYY-MM or YYYY-MM-W1
+  billing_period?: BillingPeriod; // MONTHLY or WEEKLY
+  period_label?: string; // e.g. "Week 1 (1-7 Aug 2026)"
+  date_start?: string;
+  date_end?: string;
   total_product_amount: number;
   total_delivery_charges: number;
   grand_total: number;

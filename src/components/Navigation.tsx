@@ -19,7 +19,7 @@ import {
   X,
   Milk,
   RefreshCcw,
-  Building2,
+  Receipt,
 } from 'lucide-react';
 import { store } from '@/lib/store';
 import OfflineBanner from './OfflineBanner';
@@ -47,6 +47,7 @@ export default function Navigation({ children }: NavigationProps) {
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { label: 'Customers', href: '/admin/customers', icon: Users },
     { label: 'Hotels & Bulk Orders', href: '/admin/bulk-orders', icon: Building2 },
+    { label: 'Bulk Bills & Invoices', href: '/admin/bulk-orders/billing', icon: Receipt },
     { label: 'Daily Deliveries', href: '/admin/deliveries', icon: Truck },
     { label: 'Products', href: '/admin/products', icon: Package },
     { label: 'Delivery Boys', href: '/admin/delivery-boys', icon: UserCheck },

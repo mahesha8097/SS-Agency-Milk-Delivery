@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
 import { Customer, Route, AppUser, Product, PaymentType } from '@/lib/types';
+import Link from 'next/link';
 import {
   Building2,
   Plus,
@@ -17,6 +18,7 @@ import {
   X,
   Package,
   ShieldAlert,
+  Receipt,
 } from 'lucide-react';
 
 export default function AdminBulkOrdersPage() {
@@ -177,13 +179,23 @@ export default function AdminBulkOrdersPage() {
             </p>
           </div>
 
-          <button
-            onClick={openAddModal}
-            className="bg-nandini-blue hover:bg-nandini-dark text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Hotel / Bulk Account</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <Link
+              href="/admin/bulk-orders/billing"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md transition"
+            >
+              <Receipt className="w-4 h-4" />
+              <span>Generate Bulk Bills (Weekly / Monthly)</span>
+            </Link>
+
+            <button
+              onClick={openAddModal}
+              className="bg-nandini-blue hover:bg-nandini-dark text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-md transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Hotel / Bulk Account</span>
+            </button>
+          </div>
         </div>
 
         {/* Info Banner */}
