@@ -91,8 +91,13 @@ class Store {
     if (typeof window !== 'undefined') {
       this.loadFromStorage();
       this.initAutoSync();
+      this.fetchLiveCloudData();
+      setInterval(() => {
+        this.fetchLiveCloudData();
+      }, 5000);
     }
   }
+
 
   public subscribe(listener: () => void) {
     this.listeners.add(listener);
@@ -432,7 +437,37 @@ class Store {
     return { delivery: deliveryRecord, items: newItems, isDuplicate: false };
   }
 
-  // --- Offline Auto-Sync Handler ---
+  // --- Cloud Sync & Offline Sync Handlers ---
+  public async fetchLiveCloudData() {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data: cloudDeliveries, error: delErr } = await supabase.from('daily_deliveries').select('*');
+      if (!delErr && cloudDeliveries && cloudDeliveries.length > 0) {
+        const cloudMap = new Map(cloudDeliveries.map((d: any) => [d.idempotency_key || d.id, d]));
+        const localOnly = this.data.deliveries.filter((d) => !cloudMap.has(d.idempotency_key || d.id));
+        this.data.deliveries = [...cloudDeliveries, ...localOnly];
+      }
+
+      const { data: cloudItems, error: itemErr } = await supabase.from('delivery_items').select('*');
+      if (!itemErr && cloudItems && cloudItems.length > 0) {
+        const itemMap = new Map(cloudItems.map((i: any) => [i.id, i]));
+        const localOnlyItems = this.data.deliveryItems.filter((i) => !itemMap.has(i.id));
+        this.data.deliveryItems = [...cloudItems, ...localOnlyItems];
+      }
+
+      const { data: cloudPayments, error: payErr } = await supabase.from('payments').select('*');
+      if (!payErr && cloudPayments && cloudPayments.length > 0) {
+        const payMap = new Map(cloudPayments.map((p: any) => [p.id, p]));
+        const localOnlyPay = this.data.payments.filter((p) => !payMap.has(p.id));
+        this.data.payments = [...cloudPayments, ...localOnlyPay];
+      }
+
+      this.notify();
+    } catch (e) {
+      console.error('Error fetching live cloud data from Supabase', e);
+    }
+  }
+
   private initAutoSync() {
     if (typeof window === 'undefined') return;
 
@@ -449,10 +484,10 @@ class Store {
 
       let syncedCount = 0;
       for (const item of pending) {
-        // If Supabase is configured, push to live Postgres table
         if (isSupabaseConfigured()) {
           const { error: delError } = await supabase.from('daily_deliveries').upsert(
             {
+              id: item.delivery.id,
               idempotency_key: item.idempotencyKey,
               delivery_date: item.delivery.delivery_date,
               customer_id: item.delivery.customer_id,
@@ -472,18 +507,33 @@ class Store {
           );
 
           if (!delError) {
+            if (item.items && item.items.length > 0) {
+              await supabase.from('delivery_items').upsert(
+                item.items.map((di) => ({
+                  id: di.id,
+                  delivery_id: item.delivery.id,
+                  product_id: di.product_id,
+                  product_name: di.product_name,
+                  category: di.category,
+                  packet_size_ml: di.packet_size_ml,
+                  packets_count: di.packets_count,
+                  actual_quantity_litres: di.actual_quantity_litres,
+                  price_per_unit: di.price_per_unit,
+                  total_amount: di.total_amount,
+                })),
+                { onConflict: 'id' }
+              );
+            }
             await markDeliverySynced(item.idempotencyKey);
             syncedCount++;
           }
         } else {
-          // Local sync marking
           await markDeliverySynced(item.idempotencyKey);
           syncedCount++;
         }
       }
 
       if (syncedCount > 0) {
-        // Mark local deliveries as synced
         this.data.deliveries = this.data.deliveries.map((d) => ({ ...d, is_offline_synced: true }));
         this.notify();
       }
@@ -493,6 +543,7 @@ class Store {
       return 0;
     }
   }
+
 
   // --- Payments & Advances ---
   public getPayments(customerId?: string): Payment[] {

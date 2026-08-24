@@ -4,8 +4,8 @@ import { DailyDelivery, DeliveryItem } from './types';
 
 export interface OfflineDeliveryPayload {
   idempotencyKey: string;
-  delivery: Omit<DailyDelivery, 'id'> & { id?: string };
-  items: Omit<DeliveryItem, 'id' | 'delivery_id'>[];
+  delivery: DailyDelivery;
+  items: DeliveryItem[];
   queuedAt: string;
   synced: boolean;
   syncAttempts: number;
@@ -29,8 +29,8 @@ export const offlineDB = new OfflineDatabase();
  * Enqueues a daily delivery record into local IndexedDB for offline resilience.
  */
 export async function queueOfflineDelivery(
-  delivery: Omit<DailyDelivery, 'id'> & { id?: string },
-  items: Omit<DeliveryItem, 'id' | 'delivery_id'>[]
+  delivery: DailyDelivery,
+  items: DeliveryItem[]
 ): Promise<OfflineDeliveryPayload> {
   const payload: OfflineDeliveryPayload = {
     idempotencyKey: delivery.idempotency_key,

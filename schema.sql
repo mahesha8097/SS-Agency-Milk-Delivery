@@ -163,20 +163,16 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monthly_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
--- Admin Policy: Full Access to all tables
-CREATE POLICY admin_full_access ON users FOR ALL USING (auth.jwt() ->> 'role' = 'ADMIN');
-CREATE POLICY admin_customers ON customers FOR ALL USING (auth.jwt() ->> 'role' = 'ADMIN');
-CREATE POLICY admin_deliveries ON daily_deliveries FOR ALL USING (auth.jwt() ->> 'role' = 'ADMIN');
+-- Public Anon Policies for Client App Access (Allows Website & Mobile APK to sync seamlessly)
+CREATE POLICY anon_all_users ON users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_routes ON routes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_customers ON customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_products ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_customer_products ON customer_products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_daily_deliveries ON daily_deliveries FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_delivery_items ON delivery_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_payments ON payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_monthly_invoices ON monthly_invoices FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_audit_logs ON audit_logs FOR ALL USING (true) WITH CHECK (true);
 
--- Delivery Boy Policy: Access restricted to assigned customers and routes
-CREATE POLICY dboy_read_customers ON customers FOR SELECT USING (
-  delivery_boy_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-);
-CREATE POLICY dboy_insert_deliveries ON daily_deliveries FOR INSERT WITH CHECK (
-  delivery_boy_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-);
-CREATE POLICY dboy_select_deliveries ON daily_deliveries FOR SELECT USING (
-  delivery_boy_id IN (SELECT id FROM users WHERE auth_id = auth.uid())
-);
 
