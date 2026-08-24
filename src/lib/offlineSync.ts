@@ -49,7 +49,8 @@ export async function queueOfflineDelivery(
  * Retrieves all pending offline deliveries.
  */
 export async function getPendingOfflineDeliveries(): Promise<OfflineDeliveryPayload[]> {
-  return await offlineDB.deliveryQueue.where('synced').equals(0).toArray();
+  const all = await offlineDB.deliveryQueue.toArray();
+  return all.filter((item) => !item.synced);
 }
 
 /**
@@ -65,5 +66,6 @@ export async function markDeliverySynced(idempotencyKey: string): Promise<void> 
  * Returns count of unsynced offline records.
  */
 export async function getUnsyncedCount(): Promise<number> {
-  return await offlineDB.deliveryQueue.where('synced').equals(0).count();
+  const pending = await getPendingOfflineDeliveries();
+  return pending.length;
 }

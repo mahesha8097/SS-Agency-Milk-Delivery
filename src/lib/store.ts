@@ -418,6 +418,9 @@ class Store {
     this.data.deliveryItems = this.data.deliveryItems.filter((di) => di.delivery_id !== deliveryId);
     this.data.deliveryItems.push(...newItems);
 
+    // Save to local storage
+    this.saveToStorage();
+
     // Queue in IndexedDB if offline or for sync resilience
     await queueOfflineDelivery(deliveryRecord, newItems);
 
@@ -432,7 +435,53 @@ class Store {
 
     this.notify();
 
-    // Trigger cloud sync if online
+    // Direct cloud push to Supabase if online
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('daily_deliveries').upsert(
+          {
+            id: deliveryRecord.id,
+            idempotency_key: deliveryRecord.idempotency_key,
+            delivery_date: deliveryRecord.delivery_date,
+            customer_id: deliveryRecord.customer_id,
+            delivery_boy_id: deliveryRecord.delivery_boy_id,
+            route_id: deliveryRecord.route_id,
+            total_milk_litres: deliveryRecord.total_milk_litres,
+            total_curd_packets: deliveryRecord.total_curd_packets,
+            product_total: deliveryRecord.product_total,
+            delivery_charge: deliveryRecord.delivery_charge,
+            grand_total: deliveryRecord.grand_total,
+            status: deliveryRecord.status,
+            remarks: deliveryRecord.remarks,
+            created_by: deliveryRecord.created_by,
+            updated_at: deliveryRecord.updated_at,
+          },
+          { onConflict: 'idempotency_key' }
+        );
+
+        if (newItems.length > 0) {
+          await supabase.from('delivery_items').upsert(
+            newItems.map((di) => ({
+              id: di.id,
+              delivery_id: deliveryRecord.id,
+              product_id: di.product_id,
+              product_name: di.product_name,
+              category: di.category,
+              packet_size_ml: di.packet_size_ml,
+              packets_count: di.packets_count,
+              actual_quantity_litres: di.actual_quantity_litres,
+              price_per_unit: di.price_per_unit,
+              total_amount: di.total_amount,
+            }))
+          );
+        }
+
+        await markDeliverySynced(deliveryRecord.idempotency_key);
+      } catch (err) {
+        console.error('Error during direct cloud push to Supabase', err);
+      }
+    }
+
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       this.syncPendingOfflineQueue();
     }
@@ -451,6 +500,7 @@ class Store {
         const cloudMap = new Map(cloudDeliveries.map((d: any) => [d.idempotency_key || d.id, d]));
         const localOnly = this.data.deliveries.filter((d) => !cloudMap.has(d.idempotency_key || d.id));
         this.data.deliveries = [...cloudDeliveries, ...localOnly];
+        this.saveToStorage();
       }
 
       const { data: cloudItems, error: itemErr } = await supabase.from('delivery_items').select('*');
@@ -458,6 +508,7 @@ class Store {
         const itemMap = new Map(cloudItems.map((i: any) => [i.id, i]));
         const localOnlyItems = this.data.deliveryItems.filter((i) => !itemMap.has(i.id));
         this.data.deliveryItems = [...cloudItems, ...localOnlyItems];
+        this.saveToStorage();
       }
 
       const { data: cloudPayments, error: payErr } = await supabase.from('payments').select('*');
@@ -465,6 +516,7 @@ class Store {
         const payMap = new Map(cloudPayments.map((p: any) => [p.id, p]));
         const localOnlyPay = this.data.payments.filter((p) => !payMap.has(p.id));
         this.data.payments = [...cloudPayments, ...localOnlyPay];
+        this.saveToStorage();
       }
 
       this.notify();
@@ -472,6 +524,7 @@ class Store {
       console.error('Error fetching live cloud data from Supabase', e);
     }
   }
+
 
   private async ensureCloudBaseData() {
     try {
