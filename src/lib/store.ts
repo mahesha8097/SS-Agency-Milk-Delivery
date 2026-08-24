@@ -171,17 +171,55 @@ class Store {
   }
 
   // --- Auth Methods ---
-  public login(username: string, role: 'ADMIN' | 'DELIVERY_BOY', password?: string): AppUser | null {
+  public login(usernameOrPhone: string, role: 'ADMIN' | 'DELIVERY_BOY', password?: string): AppUser | null {
+    const cleanInput = usernameOrPhone.trim().toLowerCase();
     const user = this.data.users.find(
-      (u) => u.username?.toLowerCase() === username.trim().toLowerCase() && u.role === role && u.status === 'ACTIVE'
+      (u) =>
+        (u.username?.toLowerCase() === cleanInput || u.phone?.replace(/\D/g, '') === cleanInput.replace(/\D/g, '')) &&
+        u.role === role &&
+        u.status === 'ACTIVE'
     );
     if (!user) return null;
 
-    const expectedPassword = user.password || (user.username === 'admin' ? 'admin123' : user.username === 'boy1' ? 'boy123' : 'boy223');
-    if (password !== expectedPassword) {
+    // Check saved password if set
+    if (user.password && password !== user.password) {
       return null;
     }
 
+    this.data.currentUser = user;
+    this.saveToStorage();
+    this.notify();
+    return user;
+  }
+
+  public loginByPhone(phone: string, role: 'ADMIN' | 'DELIVERY_BOY'): AppUser | null {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const user = this.data.users.find(
+      (u) => u.phone?.replace(/\D/g, '') === cleanPhone && u.role === role && u.status === 'ACTIVE'
+    );
+    if (!user) return null;
+
+    this.data.currentUser = user;
+    this.saveToStorage();
+    this.notify();
+    return user;
+  }
+
+  public loginWithGoogle(email: string, name: string, role: 'ADMIN' | 'DELIVERY_BOY'): AppUser {
+    let user = this.data.users.find((u) => u.role === role && u.status === 'ACTIVE');
+    if (!user) {
+      user = {
+        id: 'u-google-' + Math.random().toString(36).substring(2, 9),
+        name: name || 'Google User',
+        phone: '9999999999',
+        username: email.split('@')[0] || 'google_user',
+        role: role,
+        status: 'ACTIVE',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.data.users.push(user);
+    }
     this.data.currentUser = user;
     this.saveToStorage();
     this.notify();
