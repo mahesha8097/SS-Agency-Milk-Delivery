@@ -3,7 +3,7 @@ const config = {
   appName: 'S.S Agency Milk Delivery',
   webDir: 'out',
   server: {
-    androidScheme: 'https',
+    url: 'https://ss-agency-milk-delivery.vercel.app',
     cleartext: true,
   },
 };
