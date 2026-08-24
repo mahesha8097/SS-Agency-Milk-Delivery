@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   Smartphone,
   UserCheck,
+  UserPlus,
+  Send,
 } from 'lucide-react';
 import { store } from '@/lib/store';
 import { UserRole } from '@/lib/types';
@@ -24,27 +26,88 @@ export default function LoginPage() {
   const [role, setRole] = useState<UserRole>('ADMIN');
   const [authMethod, setAuthMethod] = useState<'PHONE' | 'USERNAME'>('PHONE');
 
+  // Phone & OTP state
   const [phone, setPhone] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [userOtp, setUserOtp] = useState('');
+  const [otpNotification, setOtpNotification] = useState<string | null>(null);
+
+  // Username & Password state
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Modals state
   const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showCreateAdminModal, setShowCreateAdminModal] = useState(false);
+
+  // Create Admin Form State
+  const [adminForm, setAdminForm] = useState({
+    name: 'S.S Agency Admin',
+    phone: '9876543210',
+    username: 'admin',
+    password: '',
+  });
+
+  const handleSendOtp = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setError(null);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(code);
+    setUserOtp('');
+    setOtpSent(true);
+    setOtpNotification(`OTP Code sent to +91 ${phone}: ${code}`);
+  };
+
+  const handleVerifyOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (userOtp.trim() !== generatedOtp) {
+      setError('Invalid OTP code. Please enter the 6-digit OTP code shown above.');
+      return;
+    }
+
+    let user = store.loginByPhone(phone, role);
+    if (!user) {
+      // Auto-register user by mobile number
+      user = store.saveUser({
+        name: role === 'ADMIN' ? 'Admin User' : 'Delivery Boy',
+        phone: phone,
+        role: role,
+        status: 'ACTIVE',
+        username: phone,
+      });
+      store.setCurrentUser(user);
+    }
+
+    if (user.role === 'ADMIN') {
+      router.push('/admin');
+    } else {
+      router.push('/delivery-boy');
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    let user = null;
     if (authMethod === 'PHONE') {
-      user = store.loginByPhone(phone, role);
-      if (!user && password) {
-        user = store.login(phone, role, password);
+      if (!otpSent) {
+        handleSendOtp();
+        return;
       }
-    } else {
-      user = store.login(username, role, password);
+      handleVerifyOtp(e);
+      return;
     }
 
+    const user = store.login(username, role, password);
     if (user) {
       if (user.role === 'ADMIN') {
         router.push('/admin');
@@ -52,17 +115,13 @@ export default function LoginPage() {
         router.push('/delivery-boy');
       }
     } else {
-      setError(
-        authMethod === 'PHONE'
-          ? `No active ${role === 'ADMIN' ? 'Admin' : 'Delivery Boy'} account found matching mobile number "${phone}".`
-          : `Invalid username or password for ${role === 'ADMIN' ? 'Admin Portal' : 'Delivery Boy'}.`
-      );
+      setError(`Invalid username or password for ${role === 'ADMIN' ? 'Admin Portal' : 'Delivery Boy'}.`);
     }
   };
 
   const handleGoogleLogin = () => {
     setError(null);
-    const googleUser = store.loginWithGoogle(
+    store.loginWithGoogle(
       role === 'ADMIN' ? 'admin@ssagency.com' : 'deliveryboy@ssagency.com',
       role === 'ADMIN' ? 'S.S Agency Admin' : 'Delivery Boy',
       role
@@ -74,10 +133,36 @@ export default function LoginPage() {
     }
   };
 
+  const handleCreateAdminSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminForm.name || !adminForm.phone || !adminForm.username || !adminForm.password) {
+      alert('Please fill out all admin details.');
+      return;
+    }
+
+    // Save Admin Account
+    const existingAdmin = store.getUsers().find((u) => u.role === 'ADMIN');
+    const newAdmin = store.saveUser({
+      id: existingAdmin?.id,
+      name: adminForm.name,
+      phone: adminForm.phone,
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      username: adminForm.username,
+      password: adminForm.password,
+    });
+
+    store.setCurrentUser(newAdmin);
+    setShowCreateAdminModal(false);
+    router.push('/admin');
+  };
+
   const switchRoleTab = (newRole: UserRole) => {
     setRole(newRole);
     setError(null);
     setPhone('');
+    setOtpSent(false);
+    setOtpNotification(null);
     setUsername('');
     setPassword('');
   };
@@ -177,6 +262,7 @@ export default function LoginPage() {
               onClick={() => {
                 setAuthMethod('PHONE');
                 setError(null);
+                setOtpNotification(null);
               }}
               className={`flex-1 py-2 text-center rounded-md transition flex items-center justify-center space-x-1.5 ${
                 authMethod === 'PHONE'
@@ -185,13 +271,14 @@ export default function LoginPage() {
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
-              <span>Mobile Number</span>
+              <span>Mobile OTP Login</span>
             </button>
             <button
               type="button"
               onClick={() => {
                 setAuthMethod('USERNAME');
                 setError(null);
+                setOtpNotification(null);
               }}
               className={`flex-1 py-2 text-center rounded-md transition flex items-center justify-center space-x-1.5 ${
                 authMethod === 'USERNAME'
@@ -200,9 +287,23 @@ export default function LoginPage() {
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              <span>Username & Password</span>
+              <span>Username Login</span>
             </button>
           </div>
+
+          {/* OTP Notification Banner */}
+          {otpNotification && (
+            <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-between">
+              <span>{otpNotification}</span>
+              <button
+                type="button"
+                onClick={() => setOtpNotification(null)}
+                className="text-emerald-600 hover:text-emerald-900 ml-2"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Error Banner */}
           {error && (
@@ -215,26 +316,46 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">
             {authMethod === 'PHONE' ? (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Registered Mobile Number *
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                    +91
-                  </span>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Enter 10-digit mobile number"
-                    className="w-full pl-12 pr-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-slate-50/50 focus:bg-white font-medium"
-                  />
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Mobile Number *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        setOtpSent(false);
+                        setOtpNotification(null);
+                      }}
+                      placeholder="Enter 10-digit mobile number"
+                      className="w-full pl-12 pr-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-slate-50/50 focus:bg-white font-medium"
+                    />
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Enter your registered mobile number to log in.
-                </p>
+
+                {otpSent && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                      Enter 6-Digit OTP Code *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      value={userOtp}
+                      onChange={(e) => setUserOtp(e.target.value)}
+                      placeholder="Enter 6-digit OTP (e.g. 123456)"
+                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-bold text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-slate-50/50 focus:bg-white"
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -293,17 +414,137 @@ export default function LoginPage() {
               type="submit"
               className="w-full mt-2 bg-nandini-blue hover:bg-blue-800 active:scale-[0.99] text-white py-3 px-4 rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center space-x-2"
             >
-              <span>
-                {authMethod === 'PHONE'
-                  ? 'Sign In with Mobile Number'
-                  : `Sign In as ${role === 'ADMIN' ? 'Administrator' : 'Delivery Boy'}`}
-              </span>
-              <ArrowRight className="w-4 h-4" />
+              {authMethod === 'PHONE' ? (
+                otpSent ? (
+                  <>
+                    <span>Verify OTP & Sign In</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Get OTP Code</span>
+                  </>
+                )
+              ) : (
+                <>
+                  <span>Sign In as {role === 'ADMIN' ? 'Administrator' : 'Delivery Boy'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
+          {/* Set Up / Create Admin Credentials Link */}
+          {role === 'ADMIN' && (
+            <div className="pt-3 border-t border-slate-100 text-center">
+              <button
+                type="button"
+                onClick={() => setShowCreateAdminModal(true)}
+                className="inline-flex items-center space-x-1.5 text-xs font-semibold text-nandini-blue hover:underline"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ Create or Update Admin Account</span>
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
+
+      {/* Create / Update Admin Account Modal */}
+      {showCreateAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center space-x-2 text-nandini-blue font-bold text-base">
+                <Shield className="w-5 h-5" />
+                <span>Set Up Admin Credentials</span>
+              </div>
+              <button
+                onClick={() => setShowCreateAdminModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdminSubmit} className="space-y-3 text-xs sm:text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Admin Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminForm.name}
+                  onChange={(e) => setAdminForm({ ...adminForm, name: e.target.value })}
+                  placeholder="e.g. S.S Agency Admin"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Mobile Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={adminForm.phone}
+                  onChange={(e) => setAdminForm({ ...adminForm, phone: e.target.value })}
+                  placeholder="e.g. 9876543210"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-nandini-blue focus:outline-none font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Admin Username / Login ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminForm.username}
+                  onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })}
+                  placeholder="e.g. admin"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Admin Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={adminForm.password}
+                  onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                  placeholder="Set admin password"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateAdminModal(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-nandini-blue text-white rounded-lg font-semibold hover:bg-nandini-dark shadow-xs"
+                >
+                  Save & Sign In
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Forgot Password Recovery Modal */}
       {showForgotModal && (
@@ -328,13 +569,13 @@ export default function LoginPage() {
                 <div>
                   <div className="font-bold">Login Options</div>
                   <div className="mt-1 text-xs text-slate-700">
-                    You can sign in using your registered <b>Mobile Number</b> or <b>Google Account</b> directly without typing a password.
+                    You can sign in using your registered <b>Mobile Number OTP</b> or <b>Google Account</b> directly without typing a password.
                   </div>
                 </div>
               </div>
 
               <p>
-                To reset or update account passwords, please contact the <b>S.S Agency Administrator</b>.
+                To reset or update account passwords, please contact the <b>S.S Agency Administrator</b> or use the <b>Create/Update Admin Account</b> tool.
               </p>
             </div>
 
