@@ -17,7 +17,7 @@ import { calculateDeliveryTotals, calculateMonthlyInvoiceSummary } from './calcu
 import { queueOfflineDelivery, getPendingOfflineDeliveries, markDeliverySynced } from './offlineSync';
 import { supabase, isSupabaseConfigured } from './supabase';
 
-const STORAGE_KEY = 'ss_agency_store_v4_auth_fix';
+const STORAGE_KEY = 'ss_agency_store_v5_clean_customers';
 
 export interface StoreData {
   users: AppUser[];
@@ -51,26 +51,11 @@ export const INITIAL_USERS: AppUser[] = [
   { id: '30000000-0000-0000-0000-000000000003', name: 'Delivery Boy 2 (Suresh)', phone: '9876543212', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy2', password: 'boy223', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
-export const INITIAL_ROUTES: Route[] = [
-  { id: '40000000-0000-0000-0000-000000000001', name: 'Route 1 - Orchid Enclave & Janapriya', description: 'Includes Orchid Enclave and Janapriya apartments', assigned_delivery_boy_id: '30000000-0000-0000-0000-000000000002', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '40000000-0000-0000-0000-000000000002', name: 'Route 2 - Wasthoboomi Sunshine', description: 'Includes Wasthoboomi Sunshine complex', assigned_delivery_boy_id: '30000000-0000-0000-0000-000000000003', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
+export const INITIAL_ROUTES: Route[] = [];
 
-export const INITIAL_CUSTOMERS: Customer[] = [
-  { id: '10000000-0000-0000-0000-000000000001', customer_code: 'C001', name: 'Ravi Kumar', phone: '9845012345', house_number: 'A-103', location: 'Orchid Enclave', route_id: '40000000-0000-0000-0000-000000000001', delivery_boy_id: '30000000-0000-0000-0000-000000000002', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', notes: 'Leave at front door box', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '10000000-0000-0000-0000-000000000002', customer_code: 'C002', name: 'Suresh Gowda', phone: '9845012346', house_number: 'B-204', location: 'Janapriya', route_id: '40000000-0000-0000-0000-000000000001', delivery_boy_id: '30000000-0000-0000-0000-000000000002', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '10000000-0000-0000-0000-000000000003', customer_code: 'C003', name: 'Priya Sharma', phone: '9845012347', house_number: 'C-305', location: 'Wasthoboomi Sunshine', route_id: '40000000-0000-0000-0000-000000000002', delivery_boy_id: '30000000-0000-0000-0000-000000000003', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '10000000-0000-0000-0000-000000000004', customer_code: 'C004', name: 'Mahesh Reddy', phone: '9845012348', house_number: 'D-401', location: 'Wasthoboomi Sunshine', route_id: '40000000-0000-0000-0000-000000000002', delivery_boy_id: '30000000-0000-0000-0000-000000000003', payment_type: 'MONTHLY_ADVANCE', status: 'ACTIVE', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-];
+export const INITIAL_CUSTOMERS: Customer[] = [];
 
-export const INITIAL_CUSTOMER_PRODUCTS: CustomerProductRequirement[] = [
-  { id: '50000000-0000-0000-0000-000000000001', customer_id: '10000000-0000-0000-0000-000000000001', product_id: '20000000-0000-0000-0000-000000000001', default_packets: 1, created_at: new Date().toISOString() },
-  { id: '50000000-0000-0000-0000-000000000002', customer_id: '10000000-0000-0000-0000-000000000001', product_id: '20000000-0000-0000-0000-000000000004', default_packets: 1, created_at: new Date().toISOString() },
-  { id: '50000000-0000-0000-0000-000000000003', customer_id: '10000000-0000-0000-0000-000000000001', product_id: '20000000-0000-0000-0000-000000000007', default_packets: 1, created_at: new Date().toISOString() },
-  { id: '50000000-0000-0000-0000-000000000004', customer_id: '10000000-0000-0000-0000-000000000002', product_id: '20000000-0000-0000-0000-000000000002', default_packets: 2, created_at: new Date().toISOString() },
-  { id: '50000000-0000-0000-0000-000000000005', customer_id: '10000000-0000-0000-0000-000000000003', product_id: '20000000-0000-0000-0000-000000000003', default_packets: 1, created_at: new Date().toISOString() },
-  { id: '50000000-0000-0000-0000-000000000006', customer_id: '10000000-0000-0000-0000-000000000004', product_id: '20000000-0000-0000-0000-000000000001', default_packets: 2, created_at: new Date().toISOString() },
-];
+export const INITIAL_CUSTOMER_PRODUCTS: CustomerProductRequirement[] = [];
 
 
 
@@ -97,7 +82,6 @@ class Store {
     }
   }
 
-
   public subscribe(listener: () => void) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -113,6 +97,7 @@ class Store {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('ss_agency_store_v1');
         localStorage.removeItem('ss_agency_store_v2_clean_uuid');
+        localStorage.removeItem('ss_agency_store_v4_auth_fix');
       }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -147,25 +132,13 @@ class Store {
 
   public seedDemoData() {
     this.data.users = INITIAL_USERS;
-    this.data.routes = INITIAL_ROUTES;
-    this.data.customers = INITIAL_CUSTOMERS;
+    this.data.routes = [];
+    this.data.customers = [];
     this.data.products = INITIAL_PRODUCTS;
-    this.data.customerProducts = INITIAL_CUSTOMER_PRODUCTS;
+    this.data.customerProducts = [];
     this.data.deliveries = [];
     this.data.deliveryItems = [];
-    this.data.payments = [
-      {
-        id: 'pay1',
-        customer_id: 'c1',
-        payment_date: '2026-08-01',
-        amount: 2000,
-        payment_method: 'UPI',
-        reference_number: 'UPI987654321',
-        notes: 'Monthly advance for August 2026',
-        created_by: 'u-admin',
-        created_at: new Date().toISOString(),
-      },
-    ];
+    this.data.payments = [];
     this.data.invoices = [];
     this.data.auditLogs = [
       {
