@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
+
   // Header optimization for PWA
   async headers() {
     return [
