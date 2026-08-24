@@ -237,7 +237,7 @@ export default function AgencyProfilePage() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 flex flex-col justify-between">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div>
                   <div className="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2 mb-3">
                     Invoice Signature Status
@@ -256,14 +256,6 @@ export default function AgencyProfilePage() {
                     </div>
                   )}
                 </div>
-
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="w-full py-2.5 bg-nandini-blue hover:bg-nandini-dark text-white font-bold rounded-lg text-xs flex items-center justify-center space-x-2 shadow-xs transition"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  <span>Edit Profile & Signature</span>
-                </button>
               </div>
             </div>
           </div>
