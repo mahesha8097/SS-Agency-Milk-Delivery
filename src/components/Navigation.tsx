@@ -20,6 +20,7 @@ import {
   Milk,
   RefreshCcw,
   Receipt,
+  Building2,
 } from 'lucide-react';
 import { store } from '@/lib/store';
 import OfflineBanner from './OfflineBanner';
