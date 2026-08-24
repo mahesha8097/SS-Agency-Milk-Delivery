@@ -21,6 +21,7 @@ import {
   RefreshCcw,
   Receipt,
   Building2,
+  User,
 } from 'lucide-react';
 import { store } from '@/lib/store';
 import OfflineBanner from './OfflineBanner';
@@ -46,6 +47,7 @@ export default function Navigation({ children }: NavigationProps) {
 
   const adminNav = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+    { label: 'Agency Profile', href: '/admin/profile', icon: User },
     { label: 'Customers', href: '/admin/customers', icon: Users },
     { label: 'Hotels & Bulk Orders', href: '/admin/bulk-orders', icon: Building2 },
     { label: 'Bulk Bills & Invoices', href: '/admin/bulk-orders/billing', icon: Receipt },

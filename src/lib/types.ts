@@ -156,3 +156,18 @@ export interface AuditLog {
   details?: Record<string, any>;
   created_at: string;
 }
+
+export interface AgencyProfile {
+  business_name: string;
+  phone: string;
+  gstin?: string;
+  email: string;
+  account_beginning_date: string;
+  business_type: string;
+  business_category: string;
+  state: string;
+  pincode: string;
+  address: string;
+  logo_url?: string;
+  signature_url?: string;
+}

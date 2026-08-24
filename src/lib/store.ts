@@ -12,12 +12,28 @@ import {
   MonthlyInvoice,
   AuditLog,
   DeliveryStatus,
+  AgencyProfile,
 } from './types';
 import { calculateDeliveryTotals, calculateMonthlyInvoiceSummary } from './calculations';
 import { queueOfflineDelivery, getPendingOfflineDeliveries, markDeliverySynced } from './offlineSync';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const STORAGE_KEY = 'ss_agency_store_v5_clean_customers';
+
+export const INITIAL_AGENCY_PROFILE: AgencyProfile = {
+  business_name: 'Nandini Milk Parlour',
+  phone: '7022754524',
+  gstin: '',
+  email: 'maheshgultedar545@gmail.com',
+  account_beginning_date: '2026-07-27',
+  business_type: 'Distributor',
+  business_category: 'Dairy Farm Products/ Poultry',
+  state: 'Karnataka',
+  pincode: '560067',
+  address: 'Nandini Milk Parlour, Opp. Nitesh Flushing Meadows, Towards Panchayat Road, Seegehalli, Bangalore',
+  logo_url: '',
+  signature_url: '',
+};
 
 export interface StoreData {
   users: AppUser[];
@@ -31,6 +47,7 @@ export interface StoreData {
   invoices: MonthlyInvoice[];
   auditLogs: AuditLog[];
   currentUser: AppUser | null;
+  agencyProfile?: AgencyProfile;
 }
 
 
@@ -1034,12 +1051,30 @@ class Store {
     this.data.auditLogs.push(log);
   }
 
-  // --- Signature Image ---
+  // --- Agency Profile & Signature ---
+  public getAgencyProfile(): AgencyProfile {
+    if (!this.data.agencyProfile) {
+      this.data.agencyProfile = { ...INITIAL_AGENCY_PROFILE };
+    }
+    return this.data.agencyProfile;
+  }
+
+  public saveAgencyProfile(profile: Partial<AgencyProfile>): AgencyProfile {
+    const current = this.getAgencyProfile();
+    this.data.agencyProfile = { ...current, ...profile };
+    this.saveToStorage();
+    this.notify();
+    return this.data.agencyProfile;
+  }
+
   public getSignatureImage(): string | null {
-    return (this.data as any).signatureImage || null;
+    const profile = this.getAgencyProfile();
+    return profile.signature_url || (this.data as any).signatureImage || null;
   }
 
   public setSignatureImage(imageUrl: string | null) {
+    const profile = this.getAgencyProfile();
+    profile.signature_url = imageUrl || undefined;
     (this.data as any).signatureImage = imageUrl;
     this.saveToStorage();
     this.notify();

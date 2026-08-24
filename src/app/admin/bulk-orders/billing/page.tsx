@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
-import { MonthlyInvoice, Customer } from '@/lib/types';
+import { MonthlyInvoice, Customer, AgencyProfile } from '@/lib/types';
 import {
   Building2,
   Calendar,
@@ -16,6 +16,7 @@ import {
   Receipt,
   ArrowRight,
   Filter,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -30,6 +31,7 @@ export default function AdminBulkOrdersBillingPage() {
   const [bulkCustomers, setBulkCustomers] = useState<Customer[]>([]);
   const [viewInvoice, setViewInvoice] = useState<MonthlyInvoice | null>(null);
   const [signatureImage, setSignatureImage] = useState<string | null>(null);
+  const [agencyProfile, setAgencyProfile] = useState<AgencyProfile | null>(null);
 
   const reload = () => {
     const allCusts = store.getCustomers();
@@ -49,6 +51,7 @@ export default function AdminBulkOrdersBillingPage() {
     );
     setInvoices(bulkInvList);
     setSignatureImage(store.getSignatureImage());
+    setAgencyProfile(store.getAgencyProfile());
   };
 
   useEffect(() => {
@@ -84,6 +87,11 @@ export default function AdminBulkOrdersBillingPage() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleRemoveSignature = () => {
+    setSignatureImage(null);
+    store.setSignatureImage(null);
   };
 
   const customerMap = new Map(bulkCustomers.map((c) => [c.id, c]));
@@ -367,6 +375,16 @@ export default function AdminBulkOrdersBillingPage() {
                     <input type="file" accept="image/*" onChange={handleSignatureUpload} className="hidden" />
                   </label>
 
+                  {signatureImage && (
+                    <button
+                      onClick={handleRemoveSignature}
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1.5 rounded text-xs font-semibold flex items-center space-x-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove Signature</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={handlePrintInvoice}
                     className="bg-nandini-blue text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1 shadow-xs"
@@ -382,13 +400,21 @@ export default function AdminBulkOrdersBillingPage() {
 
               {/* Printable Invoice Container (Fits 1 Sheet) */}
               <div className="printable-invoice p-5 border border-slate-300 rounded-lg space-y-3 text-xs bg-white text-slate-900">
-                {/* Invoice Header */}
-                <div className="text-center border-b border-slate-300 pb-3">
-                  <h1 className="text-xl font-black tracking-tight text-nandini-blue uppercase">S.S AGENCY</h1>
-                  <p className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">
-                    NANDINI MILK & DAIRY PRODUCTS — BULK ORDER BILL
+                {/* Invoice Header displaying strictly configured profile details */}
+                <div className="text-center border-b border-slate-300 pb-3 space-y-0.5">
+                  <h1 className="text-xl font-black tracking-tight text-nandini-blue uppercase">
+                    {agencyProfile?.business_name || 'NANDINI MILK PARLOUR'}
+                  </h1>
+                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    {agencyProfile?.business_type || 'Distributor'} — COMMERCIAL BULK SUPPLY STATEMENT
                   </p>
-                  <p className="text-[10px] text-slate-500">Commercial & Institutional Supply Service</p>
+                  <p className="text-[10px] text-slate-600">
+                    {agencyProfile?.address || 'Nandini Milk Parlour, Seegehalli, Bangalore - 560067'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    Ph: {agencyProfile?.phone || '7022754524'} | Email: {agencyProfile?.email || 'maheshgultedar545@gmail.com'}
+                    {agencyProfile?.gstin ? ` | GSTIN: ${agencyProfile.gstin}` : ''}
+                  </p>
                 </div>
 
                 {/* Customer Info */}
@@ -480,7 +506,7 @@ export default function AdminBulkOrdersBillingPage() {
                 {/* Signature Box */}
                 <div className="flex items-end justify-between pt-3 border-t border-slate-300">
                   <div className="text-left text-[10px] text-slate-500 font-medium">
-                    <div>Thank you for choosing S.S Agency!</div>
+                    <div>Thank you for choosing {agencyProfile?.business_name || 'S.S Agency'}!</div>
                     <div className="text-[9px] text-slate-400">Nandini Commercial Bulk Supply</div>
                   </div>
 
@@ -495,7 +521,7 @@ export default function AdminBulkOrdersBillingPage() {
                     <div className="text-[10px] font-bold text-slate-900 border-t border-slate-300 pt-0.5 px-2">
                       Authorized Signatory
                     </div>
-                    <div className="text-[9px] text-slate-500">S.S Agency</div>
+                    <div className="text-[9px] text-slate-500">{agencyProfile?.business_name || 'S.S Agency'}</div>
                   </div>
                 </div>
               </div>
