@@ -16,6 +16,7 @@ export default function AdminDeliveryBoysPage() {
     name: '',
     phone: '',
     username: '',
+    password: '',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
@@ -38,6 +39,7 @@ export default function AdminDeliveryBoysPage() {
       name: '',
       phone: '',
       username: '',
+      password: '',
       status: 'ACTIVE',
     });
     setShowModal(true);
@@ -49,6 +51,7 @@ export default function AdminDeliveryBoysPage() {
       name: u.name,
       phone: u.phone,
       username: u.username || '',
+      password: u.password || '',
       status: u.status,
     });
     setShowModal(true);
@@ -68,6 +71,7 @@ export default function AdminDeliveryBoysPage() {
       role: 'DELIVERY_BOY',
       status: formData.status,
       username: formData.username,
+      password: formData.password || undefined,
     });
 
     setShowModal(false);
@@ -226,6 +230,17 @@ export default function AdminDeliveryBoysPage() {
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="e.g. boy1"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Login Password</label>
+                  <input
+                    type="text"
+                    value={formData.password || ''}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Set custom password (or leave default)"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
                   />
                 </div>

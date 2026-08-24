@@ -10,6 +10,7 @@ export interface AppUser {
   role: UserRole;
   status: 'ACTIVE' | 'INACTIVE';
   username?: string;
+  password?: string;
   created_at: string;
   updated_at: string;
 }
@@ -51,6 +52,8 @@ export interface Product {
   packet_size_ml: number; // 1000 or 500
   price: number;
   active: boolean;
+  icon?: string; // Optional custom Lucide icon key
+  image_url?: string; // Optional custom product image URL or Base64 string
   created_at: string;
   updated_at: string;
 }

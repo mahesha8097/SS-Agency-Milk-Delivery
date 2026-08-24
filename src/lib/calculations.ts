@@ -28,33 +28,32 @@ export interface CalculatedDeliverySummary {
 }
 
 /**
- * Calculates delivery charge based strictly on total milk litres delivered in a single day.
+ * Calculates delivery charge based on total delivered volume (Milk & Curd) in a single day.
  * 
  * Rules:
- * - 0.5L milk = ₹2.00 (special minimum charge)
- * - 1.0L milk = ₹3.00
- * - 1.5L milk = ₹4.50
- * - 2.0L milk = ₹6.00
- * - 2.5L milk = ₹7.50
- * - 3.0L milk = ₹9.00
- * - Continues at ₹3.00 per litre for total_milk >= 1.0L
- * - 0L milk = ₹0.00
- * - Curd DOES NOT contribute to milk litres or delivery charge.
+ * - 0.5L (500ml single packet) = ₹2.00 (special minimum charge)
+ * - 1.0L = ₹3.00
+ * - 1.5L = ₹4.50
+ * - 2.0L = ₹6.00
+ * - 2.5L = ₹7.50
+ * - 3.0L = ₹9.00
+ * - Continues at ₹3.00 per litre for total_volume >= 1.0L
+ * - 0L = ₹0.00
  */
-export function calculateDeliveryCharge(totalMilkLitres: number): number {
-  if (totalMilkLitres <= 0) return 0;
+export function calculateDeliveryCharge(totalVolumeLitres: number): number {
+  if (totalVolumeLitres <= 0) return 0;
   
   // Special minimum charge for exactly 0.5L (500ml single packet)
-  if (Math.abs(totalMilkLitres - 0.5) < 0.001) {
+  if (Math.abs(totalVolumeLitres - 0.5) < 0.001) {
     return 2.00;
   }
 
   // Standard rate ₹3 per litre for 1.0L and above (and any fractional litres >= 1.0L)
-  return Math.round(totalMilkLitres * 3.00 * 100) / 100;
+  return Math.round(totalVolumeLitres * 3.00 * 100) / 100;
 }
 
 /**
- * Calculates itemized breakdown, total milk litres, delivery charge, and grand total.
+ * Calculates itemized breakdown, total milk litres, curd packets, delivery charge, and grand total.
  */
 export function calculateDeliveryTotals(
   entries: PacketEntry[],
@@ -63,6 +62,7 @@ export function calculateDeliveryTotals(
   const productMap = new Map(products.map((p) => [p.id, p]));
   
   let totalMilkLitres = 0;
+  let totalCurdLitres = 0;
   let totalCurdPackets = 0;
   let productTotal = 0;
   const items: CalculatedDeliveryItem[] = [];
@@ -72,12 +72,12 @@ export function calculateDeliveryTotals(
     const product = productMap.get(entry.productId);
     if (!product) continue;
 
-    let itemLitres = 0;
+    const itemLitres = (product.packet_size_ml / 1000) * entry.packetsCount;
     if (product.category === 'MILK') {
-      itemLitres = (product.packet_size_ml / 1000) * entry.packetsCount;
       totalMilkLitres += itemLitres;
     } else if (product.category === 'CURD') {
       totalCurdPackets += entry.packetsCount;
+      totalCurdLitres += itemLitres;
     }
 
     const itemTotal = Math.round(entry.packetsCount * product.price * 100) / 100;
@@ -95,11 +95,13 @@ export function calculateDeliveryTotals(
     });
   }
 
-  // Round milk litres to 2 decimal places
+  // Round volume to 2 decimal places
   totalMilkLitres = Math.round(totalMilkLitres * 100) / 100;
+  totalCurdLitres = Math.round(totalCurdLitres * 100) / 100;
+  const totalVolumeLitres = Math.round((totalMilkLitres + totalCurdLitres) * 100) / 100;
   productTotal = Math.round(productTotal * 100) / 100;
 
-  const deliveryCharge = calculateDeliveryCharge(totalMilkLitres);
+  const deliveryCharge = calculateDeliveryCharge(totalVolumeLitres);
   const grandTotal = Math.round((productTotal + deliveryCharge) * 100) / 100;
 
   return {

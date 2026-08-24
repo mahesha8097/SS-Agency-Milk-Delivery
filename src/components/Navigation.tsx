@@ -84,10 +84,12 @@ export default function Navigation({ children }: NavigationProps) {
             >
               {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
-            <div className="flex items-center space-x-2">
-              <div className="bg-white p-1 rounded-md text-nandini-blue font-black">
-                <Milk className="w-6 h-6" />
-              </div>
+            <div className="flex items-center space-x-2.5">
+              <img
+                src="/logo.png"
+                alt="Nandini S.S Agency Logo"
+                className="h-10 w-auto max-w-[90px] rounded-md object-contain bg-white p-0.5 border border-blue-200/50 shadow-xs"
+              />
               <div>
                 <h1 className="font-bold text-base md:text-lg leading-none tracking-tight">S.S AGENCY</h1>
                 <p className="text-[10px] md:text-xs text-blue-200">Nandini Milk Delivery Management</p>

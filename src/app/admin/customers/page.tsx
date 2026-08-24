@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
 import { Customer, Route, AppUser, Product, PaymentType } from '@/lib/types';
-import { Search, Plus, Edit, UserX, Eye, X, Check } from 'lucide-react';
+import { Search, Plus, Edit, UserX, Eye, X, Check, Trash2 } from 'lucide-react';
 
 export default function CustomerManagementPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -150,6 +150,16 @@ export default function CustomerManagementPage() {
     }
   };
 
+  const handleDeleteCustomer = (cust: Customer) => {
+    if (
+      confirm(
+        `Are you sure you want to delete customer "${cust.name}" (${cust.customer_code})?\nThis will remove their profile and default product requirements.`
+      )
+    ) {
+      store.deleteCustomer(cust.id);
+    }
+  };
+
   // Filter customers by search term and route
   const filteredCustomers = customers.filter((c) => {
     const matchesSearch =
@@ -278,9 +288,16 @@ export default function CustomerManagementPage() {
                             <button
                               onClick={() => toggleCustomerStatus(cust)}
                               title={cust.status === 'ACTIVE' ? 'Disable Customer' : 'Enable Customer'}
-                              className="p-1.5 hover:bg-slate-100 rounded text-slate-600 hover:text-rose-600"
+                              className="p-1.5 hover:bg-slate-100 rounded text-slate-600 hover:text-amber-600"
                             >
                               <UserX className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCustomer(cust)}
+                              title="Delete Customer"
+                              className="p-1.5 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>

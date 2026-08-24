@@ -4,6 +4,7 @@ import {
   Route,
   Customer,
   Product,
+  ProductCategory,
   CustomerProductRequirement,
   DailyDelivery,
   DeliveryItem,
@@ -93,11 +94,6 @@ class Store {
   constructor() {
     if (typeof window !== 'undefined') {
       this.loadFromStorage();
-      this.initAutoSync();
-      this.fetchLiveCloudData();
-      setInterval(() => {
-        this.fetchLiveCloudData();
-      }, 5000);
     }
   }
 
@@ -175,16 +171,20 @@ class Store {
   }
 
   // --- Auth Methods ---
-  public login(username: string, role: 'ADMIN' | 'DELIVERY_BOY'): AppUser | null {
+  public login(username: string, role: 'ADMIN' | 'DELIVERY_BOY', password?: string): AppUser | null {
     const user = this.data.users.find(
-      (u) => u.username?.toLowerCase() === username.toLowerCase() && u.role === role && u.status === 'ACTIVE'
+      (u) => u.username?.toLowerCase() === username.trim().toLowerCase() && u.role === role && u.status === 'ACTIVE'
     );
-    if (user) {
-      this.data.currentUser = user;
-      this.notify();
-      return user;
+    if (!user) return null;
+
+    const expectedPassword = user.password || (user.username === 'admin' ? 'admin123' : user.username === 'boy1' ? 'boy123' : 'boy223');
+    if (password && password !== expectedPassword) {
+      return null;
     }
-    return null;
+
+    this.data.currentUser = user;
+    this.notify();
+    return user;
   }
 
   public setCurrentUser(user: AppUser | null) {
@@ -263,6 +263,89 @@ class Store {
     return this.data.products;
   }
 
+  public saveProduct(productData: {
+    id?: string;
+    product_code?: string;
+    name: string;
+    category: ProductCategory;
+    packet_size_ml: number;
+    price: number;
+    icon?: string;
+    image_url?: string;
+    active?: boolean;
+  }): Product {
+    const now = new Date().toISOString();
+    let updated: Product;
+
+    if (productData.id) {
+      const idx = this.data.products.findIndex((p) => p.id === productData.id);
+      if (idx >= 0) {
+        updated = {
+          ...this.data.products[idx],
+          ...productData,
+          updated_at: now,
+        };
+        this.data.products[idx] = updated;
+      } else {
+        updated = {
+          id: productData.id,
+          product_code: productData.product_code || `P${this.data.products.length + 1}`,
+          name: productData.name,
+          category: productData.category,
+          packet_size_ml: productData.packet_size_ml,
+          price: productData.price,
+          active: productData.active !== undefined ? productData.active : true,
+          icon: productData.icon || (productData.category === 'MILK' ? 'Milk' : 'Package'),
+          image_url: productData.image_url,
+          created_at: now,
+          updated_at: now,
+        };
+        this.data.products.push(updated);
+      }
+    } else {
+      const newSeq = this.data.products.length + 1;
+      updated = {
+        id: `20000000-0000-0000-0000-${String(newSeq).padStart(12, '0')}`,
+        product_code: productData.product_code || `P00${newSeq}`,
+        name: productData.name,
+        category: productData.category,
+        packet_size_ml: productData.packet_size_ml,
+        price: productData.price,
+        active: true,
+        icon: productData.icon || (productData.category === 'MILK' ? 'Milk' : 'Package'),
+        image_url: productData.image_url,
+        created_at: now,
+        updated_at: now,
+      };
+      this.data.products.push(updated);
+    }
+
+    this.logAudit('PRODUCT_SAVE', 'PRODUCT', updated.id, {
+      product_name: updated.name,
+      price: updated.price,
+      icon: updated.icon,
+      image_url: updated.image_url ? 'set' : 'none',
+    });
+    this.saveToStorage();
+    this.notify();
+    return updated;
+  }
+
+  public deleteProduct(productId: string): boolean {
+    const product = this.data.products.find((p) => p.id === productId);
+    if (!product) return false;
+
+    this.data.products = this.data.products.filter((p) => p.id !== productId);
+    this.data.customerProducts = this.data.customerProducts.filter((cp) => cp.product_id !== productId);
+
+    this.logAudit('PRODUCT_DELETE', 'PRODUCT', productId, {
+      product_name: product.name,
+    });
+    this.saveToStorage();
+    this.notify();
+    return true;
+  }
+
   public updateProductPrice(productId: string, newPrice: number): Product | null {
     const product = this.data.products.find((p) => p.id === productId);
     if (!product) return null;
@@ -276,6 +359,7 @@ class Store {
       old_price: oldPrice,
       new_price: newPrice,
     });
+    this.saveToStorage();
     this.notify();
     return product;
   }
@@ -283,6 +367,22 @@ class Store {
   // --- Customers ---
   public getCustomers(): Customer[] {
     return this.data.customers;
+  }
+
+  public deleteCustomer(customerId: string): boolean {
+    const cust = this.data.customers.find((c) => c.id === customerId);
+    if (!cust) return false;
+
+    this.data.customers = this.data.customers.filter((c) => c.id !== customerId);
+    this.data.customerProducts = this.data.customerProducts.filter((cp) => cp.customer_id !== customerId);
+
+    this.logAudit('CUSTOMER_DELETE', 'CUSTOMER', customerId, {
+      customer_name: cust.name,
+      customer_code: cust.customer_code,
+    });
+    this.saveToStorage();
+    this.notify();
+    return true;
   }
 
   public getCustomersByDeliveryBoy(deliveryBoyId: string): Customer[] {
