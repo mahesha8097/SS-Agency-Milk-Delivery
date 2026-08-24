@@ -115,8 +115,8 @@ export default function AdminBulkOrdersPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.route_id) {
-      alert('Please fill out all required fields.');
+    if (!formData.name || !formData.phone) {
+      alert('Please fill out Name and Phone Number.');
       return;
     }
 
@@ -518,8 +518,9 @@ export default function AdminBulkOrdersPage() {
                           delivery_boy_id: route?.assigned_delivery_boy_id || formData.delivery_boy_id,
                         });
                       }}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-white"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-white font-medium"
                     >
+                      <option value="">-- Assign Later (Unassigned Route) --</option>
                       {routes.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.name}
