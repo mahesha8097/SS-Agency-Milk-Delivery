@@ -226,25 +226,9 @@ export default function AdminInvoicesPage() {
               <div className="flex items-center justify-between pb-2 border-b border-slate-200 no-print">
                 <h3 className="font-bold text-slate-900 text-base">Invoice Preview (Single Sheet Print)</h3>
                 <div className="flex items-center space-x-2">
-                  <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1">
-                    <Upload className="w-3.5 h-3.5 text-nandini-blue" />
-                    <span>Upload Signature</span>
-                    <input type="file" accept="image/*" onChange={handleSignatureUpload} className="hidden" />
-                  </label>
-
-                  {signatureImage && (
-                    <button
-                      onClick={handleRemoveSignature}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1.5 rounded text-xs font-semibold flex items-center space-x-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove Signature</span>
-                    </button>
-                  )}
-
                   <button
                     onClick={handlePrintInvoice}
-                    className="bg-nandini-blue text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1 shadow-xs"
+                    className="bg-nandini-blue hover:bg-nandini-dark text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1 shadow-xs transition"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>Print Bill (1 Sheet)</span>
