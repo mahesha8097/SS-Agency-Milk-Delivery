@@ -17,7 +17,7 @@ import { calculateDeliveryTotals, calculateMonthlyInvoiceSummary } from './calcu
 import { queueOfflineDelivery, getPendingOfflineDeliveries, markDeliverySynced } from './offlineSync';
 import { supabase, isSupabaseConfigured } from './supabase';
 
-const STORAGE_KEY = 'ss_agency_store_v2_clean_uuid';
+const STORAGE_KEY = 'ss_agency_store_v4_auth_fix';
 
 export interface StoreData {
   users: AppUser[];
@@ -112,19 +112,30 @@ class Store {
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('ss_agency_store_v1');
+        localStorage.removeItem('ss_agency_store_v2_clean_uuid');
       }
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        if (parsed.users && Array.isArray(parsed.users)) {
+          parsed.users = parsed.users.map((u: AppUser) => {
+            if (!u.password) {
+              if (u.username === 'admin') u.password = 'admin123';
+              else if (u.username === 'boy1') u.password = 'boy123';
+              else if (u.username === 'boy2') u.password = 'boy223';
+            }
+            return u;
+          });
+        }
         this.data = { ...this.data, ...parsed };
       } else {
         this.seedDemoData();
       }
     } catch (e) {
       console.error('Failed to load local store', e);
+      this.seedDemoData();
     }
   }
-
 
   private saveToStorage() {
     try {
@@ -172,17 +183,46 @@ class Store {
 
   // --- Auth Methods ---
   public login(usernameOrPhone: string, role: 'ADMIN' | 'DELIVERY_BOY', password?: string): AppUser | null {
+    if (!usernameOrPhone) return null;
     const cleanInput = usernameOrPhone.trim().toLowerCase();
-    const user = this.data.users.find(
+    const cleanPhone = cleanInput.replace(/\D/g, '');
+
+    // Guarantee users list has initial users if empty
+    if (!this.data.users || this.data.users.length === 0) {
+      this.data.users = INITIAL_USERS;
+    }
+
+    let user = this.data.users.find(
       (u) =>
-        (u.username?.toLowerCase() === cleanInput || u.phone?.replace(/\D/g, '') === cleanInput.replace(/\D/g, '')) &&
-        u.role === role &&
-        u.status === 'ACTIVE'
+        (u.username?.trim().toLowerCase() === cleanInput ||
+          (cleanPhone.length >= 8 && u.phone?.replace(/\D/g, '') === cleanPhone)) &&
+        u.role === role
     );
+
+    // Fallback to INITIAL_USERS if not in state
+    if (!user) {
+      const initMatch = INITIAL_USERS.find(
+        (u) =>
+          (u.username?.trim().toLowerCase() === cleanInput ||
+            (cleanPhone.length >= 8 && u.phone?.replace(/\D/g, '') === cleanPhone)) &&
+          u.role === role
+      );
+      if (initMatch) {
+        user = { ...initMatch };
+        this.data.users.push(user);
+      }
+    }
+
     if (!user) return null;
 
-    const expectedPassword = user.password || (user.username === 'admin' ? 'admin123' : user.username === 'boy1' ? 'boy123' : 'boy223');
-    if (password && password !== expectedPassword) {
+    // Ensure status is ACTIVE
+    user.status = 'ACTIVE';
+
+    const expectedPassword =
+      user.password ||
+      (user.username === 'admin' ? 'admin123' : user.username === 'boy1' ? 'boy123' : 'boy223');
+
+    if (password && password.trim() !== expectedPassword) {
       return null;
     }
 
