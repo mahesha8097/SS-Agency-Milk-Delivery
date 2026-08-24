@@ -444,22 +444,24 @@ class Store {
   public async fetchLiveCloudData() {
     if (!isSupabaseConfigured()) return;
     try {
+      await this.ensureCloudBaseData();
+
       const { data: cloudDeliveries, error: delErr } = await supabase.from('daily_deliveries').select('*');
-      if (!delErr && cloudDeliveries && cloudDeliveries.length > 0) {
+      if (!delErr && cloudDeliveries) {
         const cloudMap = new Map(cloudDeliveries.map((d: any) => [d.idempotency_key || d.id, d]));
         const localOnly = this.data.deliveries.filter((d) => !cloudMap.has(d.idempotency_key || d.id));
         this.data.deliveries = [...cloudDeliveries, ...localOnly];
       }
 
       const { data: cloudItems, error: itemErr } = await supabase.from('delivery_items').select('*');
-      if (!itemErr && cloudItems && cloudItems.length > 0) {
+      if (!itemErr && cloudItems) {
         const itemMap = new Map(cloudItems.map((i: any) => [i.id, i]));
         const localOnlyItems = this.data.deliveryItems.filter((i) => !itemMap.has(i.id));
         this.data.deliveryItems = [...cloudItems, ...localOnlyItems];
       }
 
       const { data: cloudPayments, error: payErr } = await supabase.from('payments').select('*');
-      if (!payErr && cloudPayments && cloudPayments.length > 0) {
+      if (!payErr && cloudPayments) {
         const payMap = new Map(cloudPayments.map((p: any) => [p.id, p]));
         const localOnlyPay = this.data.payments.filter((p) => !payMap.has(p.id));
         this.data.payments = [...cloudPayments, ...localOnlyPay];
@@ -470,6 +472,22 @@ class Store {
       console.error('Error fetching live cloud data from Supabase', e);
     }
   }
+
+  private async ensureCloudBaseData() {
+    try {
+      const { data: existingUsers } = await supabase.from('users').select('id').limit(1);
+      if (!existingUsers || existingUsers.length === 0) {
+        await supabase.from('users').upsert(INITIAL_USERS);
+        await supabase.from('routes').upsert(INITIAL_ROUTES);
+        await supabase.from('products').upsert(INITIAL_PRODUCTS);
+        await supabase.from('customers').upsert(INITIAL_CUSTOMERS);
+        await supabase.from('customer_products').upsert(INITIAL_CUSTOMER_PRODUCTS);
+      }
+    } catch (e) {
+      console.error('Error ensuring cloud base data', e);
+    }
+  }
+
 
   private initAutoSync() {
     if (typeof window === 'undefined') return;
