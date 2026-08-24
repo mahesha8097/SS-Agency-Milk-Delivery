@@ -569,7 +569,6 @@ class Store {
       return { delivery: existing, items: this.getDeliveryItems(existing.id), isDuplicate: true };
     }
 
-    const customer = this.getCustomerById(customerId);
     const isBulk = customer?.customer_category === 'BULK_ORDER' || customer?.is_bulk_order;
     const totals = calculateDeliveryTotals(packetEntries, this.data.products, !!isBulk);
     const now = new Date().toISOString();
