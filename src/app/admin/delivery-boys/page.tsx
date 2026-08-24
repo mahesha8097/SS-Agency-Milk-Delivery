@@ -116,7 +116,7 @@ export default function AdminDeliveryBoysPage() {
             className="bg-nandini-blue hover:bg-nandini-dark text-white px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Delivery Boy</span>
+            <span>Add Delivery Boy</span>
           </button>
         </div>
 
@@ -142,9 +142,8 @@ export default function AdminDeliveryBoysPage() {
                   </div>
 
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                      dboy.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                    }`}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${dboy.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      }`}
                   >
                     {dboy.status}
                   </span>

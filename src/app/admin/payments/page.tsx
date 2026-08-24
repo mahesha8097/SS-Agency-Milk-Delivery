@@ -103,7 +103,7 @@ export default function AdminPaymentsPage() {
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Record Customer Payment</span>
+            <span>Record Customer Payment</span>
           </button>
         </div>
 
@@ -240,11 +240,10 @@ export default function AdminPaymentsPage() {
                         key={method}
                         type="button"
                         onClick={() => setFormData({ ...formData, payment_method: method })}
-                        className={`py-2 rounded-lg text-xs font-bold border transition ${
-                          formData.payment_method === method
+                        className={`py-2 rounded-lg text-xs font-bold border transition ${formData.payment_method === method
                             ? 'bg-nandini-blue text-white border-nandini-blue'
                             : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
-                        }`}
+                          }`}
                       >
                         {method}
                       </button>

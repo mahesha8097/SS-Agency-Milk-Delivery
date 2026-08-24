@@ -87,7 +87,7 @@ export default function AdminRoutesPage() {
             className="bg-nandini-blue hover:bg-nandini-dark text-white px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Create New Route</span>
+            <span>Create New Route</span>
           </button>
         </div>
 
