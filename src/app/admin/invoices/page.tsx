@@ -4,7 +4,32 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
 import { MonthlyInvoice, Customer, AgencyProfile } from '@/lib/types';
-import { FileText, Printer, RefreshCw, Eye, X, Upload, Trash2 } from 'lucide-react';
+import { FileText, Printer, RefreshCw, Eye, X, Milk } from 'lucide-react';
+
+function numberToWords(num: number): string {
+  if (!num || num <= 0) return 'Zero Rupees Only';
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const n = Math.floor(num);
+  let str = '';
+  
+  if (n >= 100000) {
+    str += a[Math.floor(n / 100000)] + ' Lakh ';
+  }
+  if (Math.floor((n % 100000) / 1000) > 0) {
+    const k = Math.floor((n % 100000) / 1000);
+    str += (k < 20 ? a[k] : b[Math.floor(k / 10)] + ' ' + a[k % 10]) + ' Thousand ';
+  }
+  if (Math.floor((n % 1000) / 100) > 0) {
+    str += a[Math.floor((n % 1000) / 100)] + ' Hundred ';
+  }
+  if (n % 100 > 0) {
+    const rem = n % 100;
+    str += (rem < 20 ? a[rem] : b[Math.floor(rem / 10)] + ' ' + a[rem % 10]) + ' ';
+  }
+  return str.trim() + ' Rupees Only';
+}
 
 export default function AdminInvoicesPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -15,12 +40,14 @@ export default function AdminInvoicesPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [viewInvoice, setViewInvoice] = useState<MonthlyInvoice | null>(null);
   const [signatureImage, setSignatureImage] = useState<string | null>(null);
+  const [paymentQRImage, setPaymentQRImage] = useState<string | null>(null);
   const [agencyProfile, setAgencyProfile] = useState<AgencyProfile | null>(null);
 
   const reload = () => {
     setInvoices(store.getInvoices(selectedMonth));
     setCustomers(store.getCustomers());
     setSignatureImage(store.getSignatureImage());
+    setPaymentQRImage(store.getPaymentQR());
     setAgencyProfile(store.getAgencyProfile());
   };
 
@@ -38,24 +65,6 @@ export default function AdminInvoicesPage() {
     reload();
   };
 
-  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setSignatureImage(base64);
-        store.setSignatureImage(base64);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleRemoveSignature = () => {
-    setSignatureImage(null);
-    store.setSignatureImage(null);
-  };
-
   const customerMap = new Map(customers.map((c) => [c.id, c]));
 
   const totalBilled = invoices.reduce((sum, inv) => sum + inv.grand_total, 0);
@@ -70,12 +79,12 @@ export default function AdminInvoicesPage() {
     <Navigation>
       <main className="max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
 
-        {/* Global Print Styles for Single Page Printing */}
+        {/* Global Print Styles for Strict 1 Sheet Printing */}
         <style jsx global>{`
           @media print {
             @page {
               size: A4 portrait;
-              margin: 6mm;
+              margin: 4mm;
             }
             body {
               background: white !important;
@@ -86,7 +95,7 @@ export default function AdminInvoicesPage() {
               display: none !important;
             }
             .printable-invoice {
-              border: none !important;
+              border: 1px solid #000 !important;
               padding: 0 !important;
               box-shadow: none !important;
               width: 100% !important;
@@ -219,18 +228,19 @@ export default function AdminInvoicesPage() {
           </div>
         </div>
 
-        {/* Invoice View & Print Modal */}
+        {/* Tax Invoice View & Single Sheet Print Modal */}
         {viewInvoice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-            <div className="bg-white rounded-xl shadow-xl max-w-xl w-full p-5 space-y-3 max-h-[95vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-4 space-y-3 max-h-[96vh] overflow-y-auto">
+              {/* Modal Top Header */}
               <div className="flex items-center justify-between pb-2 border-b border-slate-200 no-print">
-                <h3 className="font-bold text-slate-900 text-base">Invoice Preview (Single Sheet Print)</h3>
+                <h3 className="font-bold text-slate-900 text-base">Tax Invoice Preview (Single Sheet Print)</h3>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handlePrintInvoice}
-                    className="bg-nandini-blue hover:bg-nandini-dark text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center space-x-1 shadow-xs transition"
+                    className="bg-nandini-blue hover:bg-nandini-dark text-white px-4 py-1.5 rounded text-xs font-bold flex items-center space-x-1.5 shadow-xs transition"
                   >
-                    <Printer className="w-3.5 h-3.5" />
+                    <Printer className="w-4 h-4" />
                     <span>Print Bill (1 Sheet)</span>
                   </button>
                   <button onClick={() => setViewInvoice(null)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -239,56 +249,85 @@ export default function AdminInvoicesPage() {
                 </div>
               </div>
 
-              {/* Printable Invoice Container (Fits 1 Sheet) */}
-              <div className="printable-invoice p-5 border border-slate-300 rounded-lg space-y-3 text-xs bg-white text-slate-900">
-                {/* Invoice Header displaying strictly configured profile details */}
-                <div className="text-center border-b border-slate-300 pb-3 space-y-0.5">
-                  <h1 className="text-xl font-black tracking-tight text-nandini-blue uppercase">
-                    {agencyProfile?.business_name || 'NANDINI MILK PARLOUR'}
-                  </h1>
-                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    {agencyProfile?.business_type || 'Distributor'} — {agencyProfile?.business_category || 'Dairy Farm Products'}
-                  </p>
-                  <p className="text-[10px] text-slate-600">
-                    {agencyProfile?.address || 'Nandini Milk Parlour, Seegehalli, Bangalore - 560067'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    Ph: {agencyProfile?.phone || '7022754524'} | Email: {agencyProfile?.email || 'maheshgultedar545@gmail.com'}
-                    {agencyProfile?.gstin ? ` | GSTIN: ${agencyProfile.gstin}` : ''}
-                  </p>
+              {/* Boxed Tax Invoice Container matching User's exact layout */}
+              <div className="printable-invoice border-2 border-slate-900 rounded-none bg-white text-slate-900 text-xs font-sans">
+
+                {/* Top Header Title */}
+                <div className="text-center font-bold uppercase tracking-wider py-1 border-b border-slate-900 bg-slate-50 text-xs">
+                  Tax Invoice
                 </div>
 
-                {/* Customer Info */}
-                <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-2.5 rounded border border-slate-200">
-                  <div>
-                    <div className="text-slate-500 font-semibold uppercase text-[9px]">Customer Details</div>
-                    <div className="font-bold text-sm text-slate-900">{customerMap.get(viewInvoice.customer_id)?.name}</div>
-                    <div>Premises: <b>{customerMap.get(viewInvoice.customer_id)?.house_number}</b></div>
-                    <div>Location: {customerMap.get(viewInvoice.customer_id)?.location}</div>
-                    <div>Code: {customerMap.get(viewInvoice.customer_id)?.customer_code}</div>
+                {/* Main Header Grid */}
+                <div className="grid grid-cols-12 border-b border-slate-900">
+                  {/* Agency Details Left */}
+                  <div className="col-span-8 p-3 flex items-start space-x-3 border-r border-slate-900">
+                    <div className="w-16 h-16 shrink-0 rounded-full border border-nandini-blue flex items-center justify-center bg-blue-50 overflow-hidden">
+                      {agencyProfile?.logo_url ? (
+                        <img src={agencyProfile.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-center">
+                          <Milk className="w-7 h-7 text-nandini-blue mx-auto" />
+                          <span className="text-[8px] font-black text-nandini-blue block uppercase">Nandini</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-0.5 text-[11px] leading-tight">
+                      <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
+                        {agencyProfile?.business_name || 'NANDINI MILK PARLOUR'}
+                      </h2>
+                      <p className="text-[10px] font-bold text-slate-700 uppercase">
+                        {agencyProfile?.address || 'SHOP NO.1,37/A, HCS GALLERIA COMPLEX, KOTE, BANGALORE RURAL DIST.'}
+                      </p>
+                      <p className="text-[10px] text-slate-700">
+                        Phone: <b className="font-mono">{agencyProfile?.phone || '7022754524'}</b> | Email: <b>{agencyProfile?.email || 'maheshgultedar545@gmail.com'}</b>
+                      </p>
+                      <p className="text-[10px] text-slate-800 font-bold">
+                        GSTIN: <span className="font-mono">{agencyProfile?.gstin || '29FBWPD7245C1ZA'}</span> | State: {agencyProfile?.state ? `29-${agencyProfile.state}` : '29-Karnataka'}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="text-right">
-                    <div className="text-slate-500 font-semibold uppercase text-[9px]">Invoice Info</div>
-                    <div className="font-mono font-bold text-nandini-blue">{viewInvoice.invoice_number}</div>
-                    <div>Month: <b>{viewInvoice.month_year}</b></div>
-                    <div>Generated: {new Date(viewInvoice.generated_at).toLocaleDateString('en-IN')}</div>
+                  {/* Invoice Meta Right */}
+                  <div className="col-span-4 p-3 text-xs space-y-1 font-medium bg-slate-50/50">
+                    <div>Invoice No.: <b className="font-mono text-nandini-blue">{viewInvoice.invoice_number}</b></div>
+                    <div>Date: <b>{new Date(viewInvoice.generated_at).toLocaleDateString('en-IN')}</b></div>
+                    <div>Time: <b>{new Date(viewInvoice.generated_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</b></div>
                   </div>
                 </div>
 
-                {/* Delivered Line Items Table */}
-                <div>
-                  <div className="font-bold text-[11px] uppercase text-slate-700 mb-1">Delivered Product Breakdown</div>
-                  <table className="w-full text-left border-collapse text-xs">
+                {/* Bill To & Transportation Details Grid */}
+                <div className="grid grid-cols-12 border-b border-slate-900 text-xs">
+                  <div className="col-span-8 p-2.5 border-r border-slate-900 space-y-0.5">
+                    <div className="font-bold uppercase text-[10px] text-slate-600">Bill To:</div>
+                    <div className="font-black text-sm text-slate-900">{customerMap.get(viewInvoice.customer_id)?.name}</div>
+                    <div>Contact No: <b className="font-mono">{customerMap.get(viewInvoice.customer_id)?.phone}</b></div>
+                    <div>Premises & Area: {customerMap.get(viewInvoice.customer_id)?.house_number}, {customerMap.get(viewInvoice.customer_id)?.location}</div>
+                  </div>
+
+                  <div className="col-span-4 p-2.5 space-y-0.5 bg-slate-50/30">
+                    <div className="font-bold uppercase text-[10px] text-slate-600">Transportation Details:</div>
+                    <div>Transport Name: <b>Morning Door Delivery</b></div>
+                    <div>Vehicle Number: <b className="font-mono">KA-53-E-1088</b></div>
+                  </div>
+                </div>
+
+                {/* Product Breakdown Table */}
+                <div className="border-b border-slate-900 overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[11px]">
                     <thead>
-                      <tr className="border-b border-slate-300 bg-slate-100 font-bold">
-                        <th className="py-1 px-2">Product</th>
-                        <th className="py-1 px-2 text-center">Packets</th>
-                        <th className="py-1 px-2 text-right">Rate</th>
-                        <th className="py-1 px-2 text-right">Amount</th>
+                      <tr className="border-b border-slate-900 bg-slate-100 font-bold uppercase text-[10px] text-slate-800">
+                        <th className="p-1.5 border-r border-slate-900 text-center w-8">#</th>
+                        <th className="p-1.5 border-r border-slate-900">Item name</th>
+                        <th className="p-1.5 border-r border-slate-900 text-center w-16">Quantity</th>
+                        <th className="p-1.5 border-r border-slate-900 text-center w-14">Unit</th>
+                        <th className="p-1.5 border-r border-slate-900 text-right w-16">MRP(Rs)</th>
+                        <th className="p-1.5 border-r border-slate-900 text-right w-16">Price(Rs)</th>
+                        <th className="p-1.5 border-r border-slate-900 text-right w-20">GST(Rs)</th>
+                        <th className="p-1.5 text-right w-20">Amount(Rs)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
+                    <tbody className="divide-y divide-slate-300">
                       {store
                         .getDeliveries(undefined, viewInvoice.customer_id)
                         .filter((d) => d.delivery_date.startsWith(viewInvoice.month_year))
@@ -304,62 +343,97 @@ export default function AdminInvoicesPage() {
                           return acc;
                         }, [] as any[])
                         .map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="py-1 px-2 font-medium">{item.product_name}</td>
-                            <td className="py-1 px-2 text-center">{item.packets_count} pkts</td>
-                            <td className="py-1 px-2 text-right">₹{item.price_per_unit}</td>
-                            <td className="py-1 px-2 text-right font-semibold">₹{item.total_amount}</td>
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-1.5 border-r border-slate-900 text-center font-bold">{idx + 1}</td>
+                            <td className="p-1.5 border-r border-slate-900 font-semibold">{item.product_name}</td>
+                            <td className="p-1.5 border-r border-slate-900 text-center font-bold">{item.packets_count}</td>
+                            <td className="p-1.5 border-r border-slate-900 text-center text-slate-600">Pkt/Ltr</td>
+                            <td className="p-1.5 border-r border-slate-900 text-right">Rs {item.price_per_unit.toFixed(2)}</td>
+                            <td className="p-1.5 border-r border-slate-900 text-right">Rs {item.price_per_unit.toFixed(2)}</td>
+                            <td className="p-1.5 border-r border-slate-900 text-right text-slate-600">Rs 0.00 (0%)</td>
+                            <td className="p-1.5 text-right font-bold">Rs {item.total_amount.toFixed(2)}</td>
                           </tr>
                         ))}
+                      {/* Total Row */}
+                      <tr className="border-t border-slate-900 bg-slate-100 font-bold">
+                        <td colSpan={2} className="p-1.5 border-r border-slate-900 text-right uppercase">Total</td>
+                        <td className="p-1.5 border-r border-slate-900 text-center font-black">
+                          {store
+                            .getDeliveries(undefined, viewInvoice.customer_id)
+                            .filter((d) => d.delivery_date.startsWith(viewInvoice.month_year))
+                            .flatMap((d) => store.getDeliveryItems(d.id))
+                            .reduce((sum, i) => sum + i.packets_count, 0)}
+                        </td>
+                        <td colSpan={4} className="p-1.5 border-r border-slate-900 text-right">Rs 0.00</td>
+                        <td className="p-1.5 text-right font-black text-slate-900">Rs {viewInvoice.grand_total.toFixed(2)}</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
 
-                {/* Calculation Summary Block */}
-                <div className="border-t border-slate-300 pt-2 space-y-1 text-xs text-right">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Product Subtotal:</span>
-                    <span className="font-semibold text-slate-800">₹{viewInvoice.total_product_amount.toFixed(2)}</span>
+                {/* Summary & Financial Grid */}
+                <div className="border-b border-slate-900 text-[11px] leading-snug">
+                  <div className="grid grid-cols-12 border-b border-slate-300 p-1.5 bg-slate-50">
+                    <div className="col-span-3 font-semibold">Sub Total: <b>Rs {viewInvoice.total_product_amount.toFixed(2)}</b></div>
+                    <div className="col-span-3 font-semibold">Round Off: <b>- Rs 0.00</b></div>
+                    <div className="col-span-6 text-right font-black text-slate-900">
+                      Total: Rs {viewInvoice.grand_total.toFixed(2)} ({numberToWords(viewInvoice.grand_total)})
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Delivery Charges:</span>
-                    <span className="font-semibold text-nandini-accent">₹{viewInvoice.total_delivery_charges.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-xs border-t border-slate-200 pt-1">
-                    <span>Grand Total:</span>
-                    <span>₹{viewInvoice.grand_total.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-700">
-                    <span>Less: Advance Payments / Credit:</span>
-                    <span className="font-bold">- ₹{viewInvoice.advance_paid.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-extrabold text-sm border-t-2 border-slate-900 pt-1 text-slate-900">
-                    <span>NET AMOUNT PAYABLE:</span>
-                    <span className="text-nandini-blue">₹{viewInvoice.amount_payable.toFixed(2)}</span>
+
+                  <div className="grid grid-cols-12 p-1.5 font-medium">
+                    <div className="col-span-3">Received: <b className="text-emerald-700">Rs {viewInvoice.advance_paid.toFixed(2)}</b></div>
+                    <div className="col-span-3">Balance: <b className="text-slate-900">Rs {viewInvoice.amount_payable.toFixed(2)}</b></div>
+                    <div className="col-span-3">Previous Balance: <b>Rs {viewInvoice.previous_balance_credit.toFixed(2)}</b></div>
+                    <div className="col-span-3 text-right">Current Balance: <b className="text-nandini-blue">Rs {viewInvoice.amount_payable.toFixed(2)}</b></div>
                   </div>
                 </div>
 
-                {/* Signature Box */}
-                <div className="flex items-end justify-between pt-3 border-t border-slate-300">
-                  <div className="text-left text-[10px] text-slate-500 font-medium">
-                    <div>Thank you for choosing {agencyProfile?.business_name || 'Nandini Milk Service'}!</div>
-                    <div className="text-[9px] text-slate-400">Morning Door-to-Door Delivery Service</div>
+                {/* QR Code & Signature Section */}
+                <div className="grid grid-cols-12 border-b border-slate-900 p-2.5 items-center">
+                  {/* Left: UPI QR Code */}
+                  <div className="col-span-6 flex items-center space-x-3">
+                    {paymentQRImage ? (
+                      <div className="text-center shrink-0">
+                        <img src={paymentQRImage} alt="Payment UPI QR Code" className="w-20 h-20 border border-slate-300 p-1 rounded bg-white mx-auto object-contain" />
+                        <div className="text-[9px] font-black text-slate-700 uppercase mt-0.5">UPI SCAN TO PAY</div>
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 border border-dashed border-slate-400 rounded flex flex-col items-center justify-center p-1 text-center text-slate-400 text-[9px] shrink-0">
+                        <span>[ QR Code ]</span>
+                        <span className="text-[8px]">Upload in Profile</span>
+                      </div>
+                    )}
+                    <div className="text-[10px] text-slate-600 space-y-0.5">
+                      <div className="font-bold text-slate-800 uppercase">Payment Modes</div>
+                      <div>• Scan & Pay via GPay / PhonePe / Paytm</div>
+                      <div>• Cash / Monthly Direct Bank Transfer</div>
+                    </div>
                   </div>
 
-                  <div className="text-center space-y-1">
+                  {/* Right: Signature Box */}
+                  <div className="col-span-6 text-right space-y-1">
                     {signatureImage ? (
-                      <img src={signatureImage} alt="Authorized Signature" className="h-10 w-auto max-w-[140px] mx-auto object-contain" />
+                      <img src={signatureImage} alt="Authorized Signature" className="h-12 w-auto max-w-[150px] ml-auto object-contain" />
                     ) : (
-                      <div className="h-8 border-b border-dashed border-slate-400 w-32 mx-auto flex items-center justify-center text-[9px] text-slate-400">
+                      <div className="h-10 border-b border-dashed border-slate-400 w-36 ml-auto flex items-center justify-center text-[9px] text-slate-400">
                         [ Signature Placeholder ]
                       </div>
                     )}
-                    <div className="text-[10px] font-bold text-slate-900 border-t border-slate-300 pt-0.5 px-2">
+                    <div className="text-[11px] font-bold text-slate-900 border-t border-slate-900 pt-0.5 inline-block px-4">
                       Authorized Signatory
                     </div>
-                    <div className="text-[9px] text-slate-500">{agencyProfile?.business_name || 'S.S Agency'}</div>
+                    <div className="text-[10px] text-slate-600">{agencyProfile?.business_name || 'S.S Agency'}</div>
                   </div>
                 </div>
+
+                {/* Terms & Conditions Footer */}
+                <div className="p-2 bg-slate-50 text-[9px] text-slate-600 leading-tight space-y-0.5">
+                  <div className="font-bold uppercase text-slate-800">Terms & Conditions:</div>
+                  <div>GOODS ONCE SOLD CANNOT BE RETURNED BACK</div>
+                  <div>- MONDAY TO SATURDAY - 9:30 AM - 5:30 PM & SUNDAY - HOLIDAY - THANKS FOR DOING BUSINESS WITH US!</div>
+                </div>
+
               </div>
             </div>
           </div>

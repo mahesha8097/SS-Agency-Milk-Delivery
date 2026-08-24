@@ -23,7 +23,7 @@ const STORAGE_KEY = 'ss_agency_store_v5_clean_customers';
 export const INITIAL_AGENCY_PROFILE: AgencyProfile = {
   business_name: 'Nandini Milk Parlour',
   phone: '7022754524',
-  gstin: '',
+  gstin: '29FBWPD7245C1ZA',
   email: 'maheshgultedar545@gmail.com',
   account_beginning_date: '2026-07-27',
   business_type: 'Distributor',
@@ -33,6 +33,8 @@ export const INITIAL_AGENCY_PROFILE: AgencyProfile = {
   address: 'Nandini Milk Parlour, Opp. Nitesh Flushing Meadows, Towards Panchayat Road, Seegehalli, Bangalore',
   logo_url: '',
   signature_url: '',
+  payment_qr_url: '',
+  terms_conditions: 'GOODS ONCE SOLD CANNOT BE RETURNED BACK\n- MONDAY TO SATURDAY - 9:30 AM - 5:30 PM & SUNDAY - HOLIDAY - THANKS FOR DOING BUSINESS WITH US!',
 };
 
 export interface StoreData {
@@ -1076,6 +1078,18 @@ class Store {
     const profile = this.getAgencyProfile();
     profile.signature_url = imageUrl || undefined;
     (this.data as any).signatureImage = imageUrl;
+    this.saveToStorage();
+    this.notify();
+  }
+
+  public getPaymentQR(): string | null {
+    const profile = this.getAgencyProfile();
+    return profile.payment_qr_url || null;
+  }
+
+  public setPaymentQR(qrUrl: string | null) {
+    const profile = this.getAgencyProfile();
+    profile.payment_qr_url = qrUrl || undefined;
     this.saveToStorage();
     this.notify();
   }

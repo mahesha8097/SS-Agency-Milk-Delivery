@@ -14,11 +14,11 @@ export default function CustomerManagementPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRouteFilter, setSelectedRouteFilter] = useState('');
-  
+
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -33,7 +33,7 @@ export default function CustomerManagementPage() {
   });
 
   const [productDefaults, setProductDefaults] = useState<{ [productId: string]: number }>({});
-  
+
   // History Modal
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
 
@@ -189,7 +189,7 @@ export default function CustomerManagementPage() {
             className="bg-nandini-blue hover:bg-nandini-dark text-white px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 shadow-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add New Customer</span>
+            <span>Add New Customer</span>
           </button>
         </div>
 
@@ -260,11 +260,10 @@ export default function CustomerManagementPage() {
                         <td className="p-3 text-slate-600">{dboyName}</td>
                         <td className="p-3">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              cust.status === 'ACTIVE'
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cust.status === 'ACTIVE'
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : 'bg-rose-100 text-rose-800'
-                            }`}
+                              }`}
                           >
                             {cust.status}
                           </span>

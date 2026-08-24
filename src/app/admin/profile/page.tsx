@@ -19,6 +19,7 @@ import {
   FileText,
   ShieldCheck,
   ArrowLeft,
+  QrCode,
 } from 'lucide-react';
 
 export default function AgencyProfilePage() {
@@ -105,6 +106,24 @@ export default function AgencyProfilePage() {
   const handleRemoveSignature = () => {
     setProfile((prev) => ({ ...prev, signature_url: '' }));
     store.setSignatureImage(null);
+  };
+
+  const handleQRUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setProfile((prev) => ({ ...prev, payment_qr_url: base64 }));
+        store.setPaymentQR(base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveQR = () => {
+    setProfile((prev) => ({ ...prev, payment_qr_url: '' }));
+    store.setPaymentQR(null);
   };
 
   return (
@@ -237,7 +256,7 @@ export default function AgencyProfilePage() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                 <div>
                   <div className="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2 mb-3">
                     Invoice Signature Status
@@ -253,6 +272,26 @@ export default function AgencyProfilePage() {
                   ) : (
                     <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-slate-400 text-xs">
                       [ No Signature Uploaded ]
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="font-bold text-slate-900 uppercase text-xs border-b border-slate-200 pb-2 mb-3">
+                    Payment UPI QR Code Status
+                  </div>
+                  {profile.payment_qr_url ? (
+                    <div className="text-center p-3 bg-white border border-slate-200 rounded-lg space-y-2">
+                      <img src={profile.payment_qr_url} alt="Payment UPI QR Code" className="h-20 w-20 mx-auto object-contain" />
+                      <div className="text-[10px] font-black text-slate-700 uppercase tracking-wider">UPI SCAN TO PAY</div>
+                      <div className="text-[11px] font-bold text-emerald-800 flex items-center justify-center space-x-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Active on Printed Invoices</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4 border border-dashed border-slate-300 rounded-lg text-slate-400 text-xs">
+                      [ No Payment QR Code Uploaded ]
                     </div>
                   )}
                 </div>
@@ -456,6 +495,42 @@ export default function AgencyProfilePage() {
                         <span className="text-xs font-semibold text-slate-600 block">Upload Signature</span>
                         <span className="text-[10px] text-slate-400 block">Supports JPG, PNG image files</span>
                         <input type="file" accept="image/*" onChange={handleSignatureUpload} className="hidden" />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-medium text-slate-600 text-xs">Payment UPI QR Code</label>
+                    {profile.payment_qr_url && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveQR}
+                        className="text-rose-600 hover:text-rose-700 font-semibold text-[11px] flex items-center space-x-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove QR Code</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-slate-400 transition bg-slate-50/50">
+                    {profile.payment_qr_url ? (
+                      <div className="space-y-2">
+                        <img src={profile.payment_qr_url} alt="Payment QR Code Preview" className="h-24 w-24 mx-auto object-contain" />
+                        <div className="text-[10px] font-black text-slate-700 uppercase">UPI SCAN TO PAY</div>
+                        <div className="text-[10px] text-emerald-700 font-bold flex items-center justify-center space-x-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>QR Code Active on Invoices</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer block py-3 space-y-2">
+                        <QrCode className="w-7 h-7 text-slate-400 mx-auto" />
+                        <span className="text-xs font-semibold text-slate-600 block">Upload Payment UPI QR Code</span>
+                        <span className="text-[10px] text-slate-400 block">Supports GPay, PhonePe, Paytm QR image</span>
+                        <input type="file" accept="image/*" onChange={handleQRUpload} className="hidden" />
                       </label>
                     )}
                   </div>

@@ -170,4 +170,6 @@ export interface AgencyProfile {
   address: string;
   logo_url?: string;
   signature_url?: string;
+  payment_qr_url?: string;
+  terms_conditions?: string;
 }
