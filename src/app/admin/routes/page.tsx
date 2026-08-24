@@ -156,9 +156,9 @@ export default function AdminRoutesPage() {
 
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-6 my-auto max-h-[90vh] flex flex-col space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
                 <h3 className="font-bold text-slate-900 text-lg">
                   {editingRoute ? 'Edit Route' : 'Create Route'}
                 </h3>
@@ -167,7 +167,7 @@ export default function AdminRoutesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="space-y-4">
+              <form onSubmit={handleSave} className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-4 pr-1">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Route Name *</label>
                   <input
@@ -207,7 +207,7 @@ export default function AdminRoutesPage() {
                   </select>
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200 shrink-0 sticky bottom-0 bg-white z-10">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}

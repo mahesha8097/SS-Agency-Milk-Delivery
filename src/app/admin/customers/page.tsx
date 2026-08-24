@@ -312,9 +312,9 @@ export default function CustomerManagementPage() {
 
         {/* Add/Edit Customer Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 space-y-4 my-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-4 sm:p-6 my-auto max-h-[90vh] sm:max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
                 <h3 className="font-bold text-slate-900 text-lg">
                   {editingCustomer ? `Edit Customer (${editingCustomer.customer_code})` : 'Add New Customer'}
                 </h3>
@@ -323,7 +323,7 @@ export default function CustomerManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="space-y-4">
+              <form onSubmit={handleSave} className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-4 pr-1 mt-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -454,7 +454,7 @@ export default function CustomerManagementPage() {
                   />
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+                <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200 shrink-0 sticky bottom-0 bg-white z-10 pb-1">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
@@ -477,8 +477,8 @@ export default function CustomerManagementPage() {
 
         {/* View Customer Delivery History Modal */}
         {historyCustomer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-            <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-4 sm:p-6 space-y-4 max-h-[90vh] flex flex-col my-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
                 <div>
                   <h3 className="font-bold text-slate-900 text-lg">
@@ -493,7 +493,7 @@ export default function CustomerManagementPage() {
                 </button>
               </div>
 
-              <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+              <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-3 pr-1">
                 {store.getDeliveries(undefined, historyCustomer.id).length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-sm">
                     No delivery records found for this customer.
