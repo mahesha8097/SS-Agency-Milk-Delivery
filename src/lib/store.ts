@@ -484,7 +484,7 @@ class Store {
 
   public saveCustomer(
     customer: Omit<Customer, 'id' | 'customer_code' | 'created_at' | 'updated_at'> & { id?: string },
-    productRequirements: { productId: string; defaultPackets: number }[]
+    productRequirements: { productId: string; defaultPackets: number }[] = []
   ): Customer {
     const now = new Date().toISOString();
     let updated: Customer;

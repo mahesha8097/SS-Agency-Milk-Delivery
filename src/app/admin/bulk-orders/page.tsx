@@ -110,28 +110,29 @@ export default function AdminBulkOrdersPage() {
       return;
     }
 
-    const savedCustomer = store.saveCustomer({
-      id: editingId || undefined,
-      name: formData.name,
-      phone: formData.phone,
-      house_number: formData.house_number || 'Main Gate',
-      location: formData.location || 'City Area',
-      route_id: formData.route_id,
-      delivery_boy_id: formData.delivery_boy_id,
-      payment_type: formData.payment_type,
-      customer_category: 'BULK_ORDER',
-      establishment_type: formData.establishment_type,
-      is_bulk_order: true,
-      status: 'ACTIVE',
-      notes: formData.notes,
-    });
-
     // Save default products
     const productReqs = Object.entries(formData.default_products)
       .filter(([_, qty]) => qty > 0)
       .map(([prodId, qty]) => ({ productId: prodId, defaultPackets: qty }));
 
-    store.setCustomerProducts(savedCustomer.id, productReqs);
+    const savedCustomer = store.saveCustomer(
+      {
+        id: editingId || undefined,
+        name: formData.name,
+        phone: formData.phone,
+        house_number: formData.house_number || 'Main Gate',
+        location: formData.location || 'City Area',
+        route_id: formData.route_id,
+        delivery_boy_id: formData.delivery_boy_id,
+        payment_type: formData.payment_type,
+        customer_category: 'BULK_ORDER',
+        establishment_type: formData.establishment_type,
+        is_bulk_order: true,
+        status: 'ACTIVE',
+        notes: formData.notes,
+      },
+      productReqs
+    );
 
     setShowModal(false);
     reloadData();
