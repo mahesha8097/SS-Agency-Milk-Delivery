@@ -46,9 +46,9 @@ export const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export const INITIAL_USERS: AppUser[] = [
-  { id: '30000000-0000-0000-0000-000000000001', name: 'S.S Agency Admin', phone: '9876543210', role: 'ADMIN', status: 'ACTIVE', username: 'admin', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '30000000-0000-0000-0000-000000000002', name: 'Delivery Boy 1 (Ramesh)', phone: '9876543211', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '30000000-0000-0000-0000-000000000003', name: 'Delivery Boy 2 (Suresh)', phone: '9876543212', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy2', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '30000000-0000-0000-0000-000000000001', name: 'S.S Agency Admin', phone: '9876543210', role: 'ADMIN', status: 'ACTIVE', username: 'admin', password: 'admin123', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '30000000-0000-0000-0000-000000000002', name: 'Delivery Boy 1 (Ramesh)', phone: '9876543211', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy1', password: 'boy123', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '30000000-0000-0000-0000-000000000003', name: 'Delivery Boy 2 (Suresh)', phone: '9876543212', role: 'DELIVERY_BOY', status: 'ACTIVE', username: 'boy2', password: 'boy223', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export const INITIAL_ROUTES: Route[] = [
