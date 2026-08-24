@@ -178,17 +178,19 @@ class Store {
     if (!user) return null;
 
     const expectedPassword = user.password || (user.username === 'admin' ? 'admin123' : user.username === 'boy1' ? 'boy123' : 'boy223');
-    if (password && password !== expectedPassword) {
+    if (password !== expectedPassword) {
       return null;
     }
 
     this.data.currentUser = user;
+    this.saveToStorage();
     this.notify();
     return user;
   }
 
   public setCurrentUser(user: AppUser | null) {
     this.data.currentUser = user;
+    this.saveToStorage();
     this.notify();
   }
 
@@ -203,6 +205,28 @@ class Store {
 
   public getDeliveryBoys(): AppUser[] {
     return this.data.users.filter((u) => u.role === 'DELIVERY_BOY');
+  }
+
+  public deleteUser(userId: string): boolean {
+    const user = this.data.users.find((u) => u.id === userId);
+    if (!user) return false;
+
+    this.data.users = this.data.users.filter((u) => u.id !== userId);
+
+    // Unassign delivery boy from any routes
+    this.data.routes = this.data.routes.map((r) =>
+      r.assigned_delivery_boy_id === userId ? { ...r, assigned_delivery_boy_id: undefined } : r
+    );
+
+    // Unassign delivery boy from any customers
+    this.data.customers = this.data.customers.map((c) =>
+      c.delivery_boy_id === userId ? { ...c, delivery_boy_id: '' } : c
+    );
+
+    this.logAudit('USER_DELETE', 'USER', userId, { name: user.name, role: user.role });
+    this.saveToStorage();
+    this.notify();
+    return true;
   }
 
   public saveUser(user: Omit<AppUser, 'id' | 'created_at' | 'updated_at'> & { id?: string }): AppUser {
@@ -225,6 +249,7 @@ class Store {
       this.data.users.push(updated);
     }
     this.logAudit('USER_SAVE', 'USER', updated.id, { name: updated.name, role: updated.role });
+    this.saveToStorage();
     this.notify();
     return updated;
   }

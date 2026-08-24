@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
 import { AppUser, Route } from '@/lib/types';
-import { UserCheck, Plus, Edit, UserX, X, Check } from 'lucide-react';
+import { UserCheck, Plus, Edit, UserX, X, Check, Trash2 } from 'lucide-react';
 
 export default function AdminDeliveryBoysPage() {
   const [deliveryBoys, setDeliveryBoys] = useState<AppUser[]>([]);
@@ -20,7 +20,6 @@ export default function AdminDeliveryBoysPage() {
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
   });
 
-
   const reload = () => {
     setDeliveryBoys(store.getDeliveryBoys());
     setRoutes(store.getRoutes());
@@ -31,7 +30,6 @@ export default function AdminDeliveryBoysPage() {
     const unsub = store.subscribe(reload);
     return () => { unsub(); };
   }, []);
-
 
   const openAddModal = () => {
     setEditingUser(null);
@@ -88,6 +86,16 @@ export default function AdminDeliveryBoysPage() {
         status: nextStatus,
         username: u.username,
       });
+    }
+  };
+
+  const handleDeleteDeliveryBoy = (u: AppUser) => {
+    if (
+      confirm(
+        `Are you sure you want to delete delivery boy account "${u.name}" (${u.username})?\nThis will remove their profile and unassign them from any active routes.`
+      )
+    ) {
+      store.deleteUser(u.id);
     }
   };
 
@@ -177,6 +185,14 @@ export default function AdminDeliveryBoysPage() {
                   >
                     <UserX className="w-3.5 h-3.5" />
                     <span>{dboy.status === 'ACTIVE' ? 'Disable' : 'Enable'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteDeliveryBoy(dboy)}
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold rounded flex items-center space-x-1 transition"
+                    title="Delete Delivery Boy Account"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>

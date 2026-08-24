@@ -20,8 +20,8 @@ import { UserRole } from '@/lib/types';
 export default function LoginPage() {
   const router = useRouter();
   const [role, setRole] = useState<UserRole>('ADMIN');
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -45,13 +45,8 @@ export default function LoginPage() {
   const switchRoleTab = (newRole: UserRole) => {
     setRole(newRole);
     setError(null);
-    if (newRole === 'ADMIN') {
-      setUsername('admin');
-      setPassword('admin123');
-    } else {
-      setUsername('boy1');
-      setPassword('boy123');
-    }
+    setUsername('');
+    setPassword('');
   };
 
   return (
@@ -125,7 +120,7 @@ export default function LoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={role === 'ADMIN' ? 'Enter admin username' : 'e.g. boy1'}
+                placeholder={role === 'ADMIN' ? 'Enter admin username' : 'Enter login ID (e.g. boy1)'}
                 className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -175,48 +170,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Credentials Assistant */}
-          <div className="pt-4 border-t border-slate-100">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider text-center mb-2.5">
-              Preset Demo Login Details
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  switchRoleTab('ADMIN');
-                  setUsername('admin');
-                  setPassword('admin123');
-                }}
-                className="px-2 py-2 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 text-center transition"
-              >
-                🔑 Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  switchRoleTab('DELIVERY_BOY');
-                  setUsername('boy1');
-                  setPassword('boy123');
-                }}
-                className="px-2 py-2 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 text-center transition"
-              >
-                🚚 Boy 1 (Ramesh)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  switchRoleTab('DELIVERY_BOY');
-                  setUsername('boy2');
-                  setPassword('boy223');
-                }}
-                className="px-2 py-2 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 text-center transition"
-              >
-                🚚 Boy 2 (Suresh)
-              </button>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -227,7 +180,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2 text-nandini-blue font-bold text-base">
                 <HelpCircle className="w-5 h-5" />
-                <span>Password Help & Recovery</span>
+                <span>Password Recovery</span>
               </div>
               <button
                 onClick={() => setShowForgotModal(false)}
@@ -241,35 +194,24 @@ export default function LoginPage() {
               <div className="bg-blue-50 border border-blue-200 text-blue-900 p-3 rounded-xl flex items-start space-x-2.5">
                 <CheckCircle2 className="w-4 h-4 text-nandini-blue shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold">Default System Credentials</div>
-                  <div className="mt-1 space-y-0.5 text-xs">
-                    <div>• <b>Admin:</b> Username: <code className="bg-white px-1 rounded font-bold">admin</code> / Password: <code className="bg-white px-1 rounded font-bold">admin123</code></div>
-                    <div>• <b>Delivery Boy 1:</b> Username: <code className="bg-white px-1 rounded font-bold">boy1</code> / Password: <code className="bg-white px-1 rounded font-bold">boy123</code></div>
-                    <div>• <b>Delivery Boy 2:</b> Username: <code className="bg-white px-1 rounded font-bold">boy2</code> / Password: <code className="bg-white px-1 rounded font-bold">boy223</code></div>
+                  <div className="font-bold">Password Reset Policy</div>
+                  <div className="mt-1 text-xs text-slate-700">
+                    For security reasons, password resets must be managed directly inside the Admin Panel.
                   </div>
                 </div>
               </div>
 
               <p>
-                If you are a Delivery Boy and forgot your custom password, please contact the <b>S.S Agency Administrator</b> to view or update your login credentials in the Admin Panel.
+                If you are a Delivery Boy and forgot your password, please contact the <b>S.S Agency Administrator</b> to update your login password in <b>Admin $\rightarrow$ Delivery Boys</b>.
               </p>
             </div>
 
             <div className="flex justify-end pt-3 border-t border-slate-100">
               <button
-                onClick={() => {
-                  setShowForgotModal(false);
-                  if (role === 'ADMIN') {
-                    setUsername('admin');
-                    setPassword('admin123');
-                  } else {
-                    setUsername('boy1');
-                    setPassword('boy123');
-                  }
-                }}
-                className="px-4 py-2 bg-nandini-blue text-white font-semibold rounded-lg text-xs"
+                onClick={() => setShowForgotModal(false)}
+                className="px-4 py-2 bg-nandini-blue text-white font-semibold rounded-lg text-xs hover:bg-nandini-dark"
               >
-                Use Default Credentials
+                Close
               </button>
             </div>
           </div>

@@ -38,13 +38,6 @@ export default function Navigation({ children }: NavigationProps) {
     router.push('/');
   };
 
-  const handleResetDemoData = () => {
-    if (confirm('Reset system to initial demo sample data?')) {
-      store.seedDemoData();
-      window.location.reload();
-    }
-  };
-
   if (!currentUser) return null;
 
   const isAdmin = currentUser.role === 'ADMIN';
@@ -104,17 +97,6 @@ export default function Navigation({ children }: NavigationProps) {
                 {isAdmin ? 'System Admin' : 'Delivery Boy'}
               </div>
             </div>
-
-            {isAdmin && (
-              <button
-                onClick={handleResetDemoData}
-                title="Reset Sample Data"
-                className="hidden md:flex items-center space-x-1 bg-blue-800 hover:bg-blue-700 px-2.5 py-1.5 rounded text-xs text-blue-100"
-              >
-                <RefreshCcw className="w-3.5 h-3.5" />
-                <span>Reset Demo</span>
-              </button>
-            )}
 
             <button
               onClick={handleLogout}
@@ -195,15 +177,6 @@ export default function Navigation({ children }: NavigationProps) {
 
               <div className="pt-4 border-t border-slate-200">
                 <div className="text-xs text-slate-500 mb-2">Logged in as {currentUser.name}</div>
-                {isAdmin && (
-                  <button
-                    onClick={handleResetDemoData}
-                    className="w-full mb-2 flex items-center justify-center space-x-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded text-xs font-medium"
-                  >
-                    <RefreshCcw className="w-3.5 h-3.5" />
-                    <span>Reset Demo Data</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
