@@ -25,6 +25,8 @@ import {
   ShieldAlert,
   ArrowRight,
   Info,
+  Copy,
+  Zap,
 } from 'lucide-react';
 
 export default function DeliveryBoyPage() {
@@ -92,7 +94,6 @@ export default function DeliveryBoyPage() {
   // Select initial customer if none selected
   useEffect(() => {
     if (filteredCustomers.length > 0 && !selectedCustomerId) {
-      // Pick first pending customer or first customer
       const firstPending = filteredCustomers.find((c) => !store.getExistingDelivery(c.id, dateStr));
       setSelectedCustomerId((firstPending || filteredCustomers[0]).id);
     }
@@ -130,7 +131,6 @@ export default function DeliveryBoyPage() {
         const item = items.find((i) => i.product_id === p.id);
         defaults[p.id] = item ? item.packets_count : 0;
         if (item && item.packets_count > 0) {
-          // Check if this was an extra product (not in regular requirements)
           const custReqs = store.getCustomerProducts(cust.id);
           const isReq = custReqs.some((cr) => cr.product_id === p.id && cr.default_packets > 0);
           if (!isReq) extraIds.push(p.id);
@@ -158,7 +158,7 @@ export default function DeliveryBoyPage() {
 
   const assignedRoute = routes.find((r) => r.assigned_delivery_boy_id === currentUser?.id);
 
-  // Compute regular products to show (Regular Requirements + Additional Products)
+  // Compute regular products to show
   const displayedProducts = useMemo(() => {
     if (!activeCustomer) return [];
     const custReqs = store.getCustomerProducts(activeCustomer.id);
@@ -168,10 +168,8 @@ export default function DeliveryBoyPage() {
       if (cr.default_packets > 0) regularIds.add(cr.product_id);
     });
 
-    // Add additional products picked via "+ Add Product"
     additionalProductIds.forEach((id) => regularIds.add(id));
 
-    // Fallback: If customer has no regular defaults configured, show default milk products
     if (regularIds.size === 0) {
       products.forEach((p) => {
         if (p.category === 'MILK') regularIds.add(p.id);
@@ -229,9 +227,10 @@ export default function DeliveryBoyPage() {
   };
 
   // Save Delivery Record & Fast Auto-Next
-  const handleSaveDelivery = async (statusOverride?: DeliveryStatus) => {
+  const handleSaveDelivery = async (statusOverride?: DeliveryStatus, customPacketEntries?: { productId: string; packetsCount: number }[]) => {
     if (!activeCustomer || !currentUser) return;
     const targetStatus = statusOverride || deliveryStatus;
+    const entriesToSave = customPacketEntries || (targetStatus === 'DELIVERED' ? packetEntries : []);
 
     setSaving(true);
     try {
@@ -241,7 +240,7 @@ export default function DeliveryBoyPage() {
         activeCustomer.route_id,
         dateStr,
         targetStatus,
-        targetStatus === 'DELIVERED' ? packetEntries : [],
+        entriesToSave,
         remarks,
         activeExistingDelivery?.id
       );
@@ -262,6 +261,134 @@ export default function DeliveryBoyPage() {
       setSaving(false);
       alert('Error saving delivery record');
     }
+  };
+
+  // COPY YESTERDAY'S DELIVERY FOR ACTIVE CUSTOMER
+  const handleCopyYesterday = (cust: Customer | null = activeCustomer): boolean => {
+    if (!cust) return false;
+    const yesterday = new Date(Date.parse(dateStr || new Date().toISOString()) - 86400000)
+      .toISOString()
+      .split('T')[0];
+    const prevDelivery = store.getExistingDelivery(cust.id, yesterday);
+    const allProds = store.getProducts().filter((p) => p.active);
+    const defaults: { [key: string]: number } = {};
+    const extraIds: string[] = [];
+
+    if (prevDelivery) {
+      const items = store.getDeliveryItems(prevDelivery.id);
+      allProds.forEach((p) => {
+        const item = items.find((i) => i.product_id === p.id);
+        defaults[p.id] = item ? item.packets_count : 0;
+        if (item && item.packets_count > 0) {
+          const custReqs = store.getCustomerProducts(cust.id);
+          const isReq = custReqs.some((cr) => cr.product_id === p.id && cr.default_packets > 0);
+          if (!isReq) extraIds.push(p.id);
+        }
+      });
+      setPacketCounts(defaults);
+      setAdditionalProductIds(extraIds);
+      setDeliveryStatus('DELIVERED');
+      setToastMessage(`✓ Copied yesterday's packets for ${cust.name}`);
+      setTimeout(() => setToastMessage(null), 1200);
+      return true;
+    } else {
+      // Fallback: reset to customer regular requirements
+      const custReqs = store.getCustomerProducts(cust.id);
+      allProds.forEach((p) => {
+        const req = custReqs.find((cr) => cr.product_id === p.id);
+        defaults[p.id] = req ? req.default_packets : 0;
+      });
+      setPacketCounts(defaults);
+      setToastMessage(`No delivery recorded yesterday; loaded regular requirements.`);
+      setTimeout(() => setToastMessage(null), 1500);
+      return false;
+    }
+  };
+
+  // ONE-TAP: COPY YESTERDAY & DELIVER ➔
+  const handleCopyYesterdayAndDeliver = async () => {
+    if (!activeCustomer || !currentUser) return;
+    const yesterday = new Date(Date.parse(dateStr || new Date().toISOString()) - 86400000)
+      .toISOString()
+      .split('T')[0];
+    const prevDelivery = store.getExistingDelivery(activeCustomer.id, yesterday);
+    let entriesToSave: { productId: string; packetsCount: number }[] = [];
+
+    if (prevDelivery) {
+      const items = store.getDeliveryItems(prevDelivery.id);
+      entriesToSave = items.map((i) => ({
+        productId: i.product_id,
+        packetsCount: i.packets_count,
+      }));
+    } else {
+      const custReqs = store.getCustomerProducts(activeCustomer.id);
+      entriesToSave = custReqs.map((cr) => ({
+        productId: cr.product_id,
+        packetsCount: cr.default_packets,
+      }));
+    }
+
+    await handleSaveDelivery('DELIVERED', entriesToSave);
+  };
+
+  // BULK OPTION: COPY YESTERDAY FOR ALL PENDING ROUTE CUSTOMERS
+  const handleBulkCopyYesterdayForAll = async () => {
+    if (!currentUser || customers.length === 0) return;
+    const yesterday = new Date(Date.parse(dateStr || new Date().toISOString()) - 86400000)
+      .toISOString()
+      .split('T')[0];
+
+    const pendingCusts = customers.filter((c) => !store.getExistingDelivery(c.id, dateStr));
+    if (pendingCusts.length === 0) {
+      alert("All customers on this route already have today's delivery recorded!");
+      return;
+    }
+
+    if (
+      !confirm(
+        `Copy yesterday's delivery records for ${pendingCusts.length} pending customer(s) on this route today?`
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    let copiedCount = 0;
+    for (const cust of pendingCusts) {
+      const prevDelivery = store.getExistingDelivery(cust.id, yesterday);
+      let packetEntriesToSave: { productId: string; packetsCount: number }[] = [];
+
+      if (prevDelivery) {
+        const items = store.getDeliveryItems(prevDelivery.id);
+        packetEntriesToSave = items.map((i) => ({
+          productId: i.product_id,
+          packetsCount: i.packets_count,
+        }));
+      } else {
+        const custReqs = store.getCustomerProducts(cust.id);
+        packetEntriesToSave = custReqs.map((cr) => ({
+          productId: cr.product_id,
+          packetsCount: cr.default_packets,
+        }));
+      }
+
+      if (packetEntriesToSave.length > 0) {
+        await store.saveDailyDelivery(
+          cust.id,
+          currentUser.id,
+          cust.route_id,
+          dateStr,
+          'DELIVERED',
+          packetEntriesToSave,
+          'Copied from yesterday',
+          undefined
+        );
+        copiedCount++;
+      }
+    }
+    setSaving(false);
+    alert(`✓ Successfully recorded today's delivery for ${copiedCount} customers based on yesterday!`);
+    reloadData();
   };
 
   const handleAddExtraProduct = (prodId: string) => {
@@ -307,8 +434,19 @@ export default function DeliveryBoyPage() {
               </div>
             </div>
 
-            {/* Progress Badge */}
-            <div className="flex items-center space-x-3 shrink-0">
+            {/* Quick Bulk Action & Progress Badge */}
+            <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+              {/* Bulk Copy Yesterday Button */}
+              <button
+                type="button"
+                onClick={handleBulkCopyYesterdayForAll}
+                className="hidden sm:flex items-center space-x-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs"
+                title="Copy yesterday's delivery records for all pending customers on this route"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                <span>Repeat Yesterday (All)</span>
+              </button>
+
               <div className="text-right">
                 <div className="text-sm md:text-base font-black text-slate-900 leading-none">
                   {deliveredCount} / {totalCount}
@@ -344,6 +482,15 @@ export default function DeliveryBoyPage() {
                     {filteredCustomers.length}
                   </span>
                 </h2>
+
+                <button
+                  type="button"
+                  onClick={handleBulkCopyYesterdayForAll}
+                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded border border-amber-200 flex items-center space-x-1"
+                >
+                  <Copy className="w-3 h-3 text-amber-600" />
+                  <span>Repeat All</span>
+                </button>
               </div>
 
               {/* Sidebar Search Input */}
@@ -497,18 +644,32 @@ export default function DeliveryBoyPage() {
 
                   {/* REGULAR PRODUCTS ONLY SECTION */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                       <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
                         Today's Items (Packet Qty)
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowAddProductModal(true)}
-                        className="text-nandini-blue hover:underline font-bold text-xs flex items-center space-x-1 bg-blue-50 px-2 py-1 rounded-md"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>+ Add Product</span>
-                      </button>
+
+                      <div className="flex items-center space-x-2">
+                        {/* Copy Yesterday's Packets Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleCopyYesterday()}
+                          className="text-slate-700 hover:text-slate-900 font-bold text-xs flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-200 transition"
+                          title="Copy yesterday's packet counts for this customer"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-blue-600" />
+                          <span>📋 Copy Yesterday</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowAddProductModal(true)}
+                          className="text-nandini-blue hover:underline font-bold text-xs flex items-center space-x-1 bg-blue-50 px-2.5 py-1 rounded-md"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Add Product</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Product Quantity Control Rows */}
@@ -616,9 +777,10 @@ export default function DeliveryBoyPage() {
                     </div>
                   </div>
 
-                  {/* MAIN ACTION BUTTONS: [ ✓ DELIVERED ] + [ More ▼ ] */}
-                  <div className="pt-2 relative">
+                  {/* MAIN ACTION BUTTONS: [ ✓ DELIVERED ] + [ 📋 REPEAT YESTERDAY & DELIVER ➔ ] */}
+                  <div className="pt-2 space-y-2 relative">
                     <div className="flex items-center space-x-2">
+                      {/* Main Save & Deliver Button */}
                       <button
                         type="button"
                         disabled={saving}
@@ -635,11 +797,23 @@ export default function DeliveryBoyPage() {
                         </span>
                       </button>
 
+                      {/* One-Tap Copy Yesterday & Deliver Button */}
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={handleCopyYesterdayAndDeliver}
+                        className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white py-3.5 px-3 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center space-x-1 shrink-0 touch-manipulation"
+                        title="Copy yesterday's delivery and save immediately in 1 tap"
+                      >
+                        <Zap className="w-4 h-4 fill-white" />
+                        <span>Repeat Yesterday ➔</span>
+                      </button>
+
                       {/* Dropdown toggle for alternative statuses */}
                       <button
                         type="button"
                         onClick={() => setShowMoreStatus((prev) => !prev)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-3.5 rounded-xl font-bold text-xs border border-slate-300 flex items-center space-x-1 shrink-0"
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-3.5 rounded-xl font-bold text-xs border border-slate-300 flex items-center space-x-1 shrink-0"
                       >
                         <span>More</span>
                         <ChevronDown className="w-4 h-4" />
@@ -713,6 +887,19 @@ export default function DeliveryBoyPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Bulk Copy Yesterday button inside mobile drawer */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomerDrawer(false);
+                  handleBulkCopyYesterdayForAll();
+                }}
+                className="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-600" />
+                <span>Repeat Yesterday for All</span>
+              </button>
 
               {/* Mobile Drawer Search Input */}
               <div className="relative">
