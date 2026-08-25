@@ -20,6 +20,28 @@ import { supabase, isSupabaseConfigured } from './supabase';
 
 const STORAGE_KEY = 'ss_agency_store_v5_clean_customers';
 
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+async function pushToCloud(operation: PromiseLike<any>, errorMessage: string = 'Cloud sync error') {
+  try {
+    const res: any = await operation;
+    if (res && res.error) {
+      console.error(errorMessage, res.error);
+    }
+  } catch (err) {
+    console.error(errorMessage, err);
+  }
+}
+
 export const INITIAL_AGENCY_PROFILE: AgencyProfile = {
   business_name: 'Nandini Milk Parlour',
   phone: '7022754524',
@@ -52,7 +74,6 @@ export interface StoreData {
   agencyProfile?: AgencyProfile;
 }
 
-
 // Initial Sample Seed Data with Valid Hexadecimal PostgreSQL UUIDs
 export const INITIAL_PRODUCTS: Product[] = [
   { id: '20000000-0000-0000-0000-000000000001', product_code: 'BM1', name: 'Blue Milk 1L', category: 'MILK', packet_size_ml: 1000, price: 44, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
@@ -71,12 +92,8 @@ export const INITIAL_USERS: AppUser[] = [
 ];
 
 export const INITIAL_ROUTES: Route[] = [];
-
 export const INITIAL_CUSTOMERS: Customer[] = [];
-
 export const INITIAL_CUSTOMER_PRODUCTS: CustomerProductRequirement[] = [];
-
-
 
 class Store {
   private data: StoreData = {
@@ -90,15 +107,29 @@ class Store {
     payments: [],
     invoices: [],
     auditLogs: [],
-    currentUser: INITIAL_USERS[0], // Default logged in as admin
+    currentUser: INITIAL_USERS[0],
   };
 
   private listeners: Set<() => void> = new Set();
 
+  private realtimeChannel: any = null;
+  private realtimeConnected: boolean = false;
+  private lastRealtimeEvent: { table: string; eventType: string; timestamp: string } | null = null;
+
   constructor() {
     if (typeof window !== 'undefined') {
       this.loadFromStorage();
+      this.initAutoSync();
+      this.fetchLiveCloudData();
+      this.setupRealtimeSubscription();
     }
+  }
+
+  public getRealtimeStatus() {
+    return {
+      connected: this.realtimeConnected,
+      lastEvent: this.lastRealtimeEvent,
+    };
   }
 
   public subscribe(listener: () => void) {
@@ -161,8 +192,8 @@ class Store {
     this.data.invoices = [];
     this.data.auditLogs = [
       {
-        id: 'log1',
-        user_id: 'u-admin',
+        id: generateUUID(),
+        user_id: INITIAL_USERS[0].id,
         user_name: 'S.S Agency Admin',
         action: 'SYSTEM_INIT',
         entity_type: 'SYSTEM',
@@ -179,7 +210,6 @@ class Store {
     const cleanInput = usernameOrPhone.trim().toLowerCase();
     const cleanPhone = cleanInput.replace(/\D/g, '');
 
-    // Guarantee users list has initial users if empty
     if (!this.data.users || this.data.users.length === 0) {
       this.data.users = INITIAL_USERS;
     }
@@ -191,7 +221,6 @@ class Store {
         u.role === role
     );
 
-    // Fallback to INITIAL_USERS if not in state
     if (!user) {
       const initMatch = INITIAL_USERS.find(
         (u) =>
@@ -207,7 +236,6 @@ class Store {
 
     if (!user) return null;
 
-    // Ensure status is ACTIVE
     user.status = 'ACTIVE';
 
     const expectedPassword =
@@ -238,6 +266,14 @@ class Store {
     this.data.users = this.data.users.map((u) => (u.id === user.id ? { ...u, password: newPassword } : u));
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(
+        supabase.from('users').upsert({ id: user.id, password: newPassword, updated_at: user.updated_at }),
+        'Supabase reset password error'
+      );
+    }
+
     return true;
   }
 
@@ -258,7 +294,7 @@ class Store {
     let user = this.data.users.find((u) => u.role === role && u.status === 'ACTIVE');
     if (!user) {
       user = {
-        id: 'u-google-' + Math.random().toString(36).substring(2, 9),
+        id: generateUUID(),
         name: name || 'Google User',
         phone: '9999999999',
         username: email.split('@')[0] || 'google_user',
@@ -272,6 +308,11 @@ class Store {
     this.data.currentUser = user;
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('users').upsert(user), 'Supabase google login user error');
+    }
+
     return user;
   }
 
@@ -300,12 +341,10 @@ class Store {
 
     this.data.users = this.data.users.filter((u) => u.id !== userId);
 
-    // Unassign delivery boy from any routes
     this.data.routes = this.data.routes.map((r) =>
       r.assigned_delivery_boy_id === userId ? { ...r, assigned_delivery_boy_id: undefined } : r
     );
 
-    // Unassign delivery boy from any customers
     this.data.customers = this.data.customers.map((c) =>
       c.delivery_boy_id === userId ? { ...c, delivery_boy_id: '' } : c
     );
@@ -313,6 +352,11 @@ class Store {
     this.logAudit('USER_DELETE', 'USER', userId, { name: user.name, role: user.role });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('users').delete().eq('id', userId), 'Supabase user delete error');
+    }
+
     return true;
   }
 
@@ -328,7 +372,7 @@ class Store {
       this.data.users = this.data.users.map((u) => (u.id === user.id ? updated : u));
     } else {
       updated = {
-        id: 'u-' + Math.random().toString(36).substr(2, 9),
+        id: generateUUID(),
         created_at: now,
         updated_at: now,
         ...user,
@@ -338,6 +382,11 @@ class Store {
     this.logAudit('USER_SAVE', 'USER', updated.id, { name: updated.name, role: updated.role });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('users').upsert(updated), 'Supabase user save error');
+    }
+
     return updated;
   }
 
@@ -358,7 +407,7 @@ class Store {
       this.data.routes = this.data.routes.map((r) => (r.id === route.id ? updated : r));
     } else {
       updated = {
-        id: 'r-' + Math.random().toString(36).substr(2, 9),
+        id: generateUUID(),
         created_at: now,
         updated_at: now,
         ...route,
@@ -366,7 +415,13 @@ class Store {
       this.data.routes.push(updated);
     }
     this.logAudit('ROUTE_SAVE', 'ROUTE', updated.id, { name: updated.name });
+    this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('routes').upsert(updated), 'Supabase route save error');
+    }
+
     return updated;
   }
 
@@ -417,7 +472,7 @@ class Store {
     } else {
       const newSeq = this.data.products.length + 1;
       updated = {
-        id: `20000000-0000-0000-0000-${String(newSeq).padStart(12, '0')}`,
+        id: generateUUID(),
         product_code: productData.product_code || `P00${newSeq}`,
         name: productData.name,
         category: productData.category,
@@ -440,6 +495,11 @@ class Store {
     });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('products').upsert(updated), 'Supabase product save error');
+    }
+
     return updated;
   }
 
@@ -455,6 +515,12 @@ class Store {
     });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('customer_products').delete().eq('product_id', productId), 'Delete product requirements error');
+      pushToCloud(supabase.from('products').delete().eq('id', productId), 'Delete product error');
+    }
+
     return true;
   }
 
@@ -473,6 +539,11 @@ class Store {
     });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('products').upsert(product), 'Update product price error');
+    }
+
     return product;
   }
 
@@ -494,6 +565,12 @@ class Store {
     });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('customer_products').delete().eq('customer_id', customerId), 'Delete customer products error');
+      pushToCloud(supabase.from('customers').delete().eq('id', customerId), 'Delete customer error');
+    }
+
     return true;
   }
 
@@ -518,7 +595,7 @@ class Store {
       const codeIndex = this.data.customers.length + 1;
       const code = 'C' + codeIndex.toString().padStart(3, '0');
       updated = {
-        id: 'c-' + Math.random().toString(36).substr(2, 9),
+        id: generateUUID(),
         customer_code: code,
         created_at: now,
         updated_at: now,
@@ -527,22 +604,35 @@ class Store {
       this.data.customers.push(updated);
     }
 
-    // Save product requirements
     this.data.customerProducts = this.data.customerProducts.filter((cp) => cp.customer_id !== updated.id);
+    const newReqs: CustomerProductRequirement[] = [];
     for (const req of productRequirements) {
       if (req.defaultPackets > 0) {
-        this.data.customerProducts.push({
-          id: 'cp-' + Math.random().toString(36).substr(2, 9),
+        const cpItem: CustomerProductRequirement = {
+          id: generateUUID(),
           customer_id: updated.id,
           product_id: req.productId,
           default_packets: req.defaultPackets,
           created_at: now,
-        });
+        };
+        this.data.customerProducts.push(cpItem);
+        newReqs.push(cpItem);
       }
     }
 
     this.logAudit('CUSTOMER_SAVE', 'CUSTOMER', updated.id, { name: updated.name, code: updated.customer_code });
+    this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('customers').upsert(updated), 'Save customer error');
+      pushToCloud(supabase.from('customer_products').delete().eq('customer_id', updated.id), 'Clear customer products error').then(() => {
+        if (newReqs.length > 0) {
+          pushToCloud(supabase.from('customer_products').upsert(newReqs), 'Save customer products error');
+        }
+      });
+    }
+
     return updated;
   }
 
@@ -582,7 +672,6 @@ class Store {
 
     const idempotencyKey = `${customerId}_${deliveryDate}`;
 
-    // Duplicate protection check
     const existing = this.getExistingDelivery(customerId, deliveryDate);
     if (existing && existing.id !== existingDeliveryId) {
       return { delivery: existing, items: this.getDeliveryItems(existing.id), isDuplicate: true };
@@ -592,7 +681,7 @@ class Store {
     const totals = calculateDeliveryTotals(packetEntries, this.data.products, !!isBulk);
     const now = new Date().toISOString();
 
-    const deliveryId = existingDeliveryId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'd' + Math.random().toString(36).substr(2, 8) + '-0000-0000-0000-000000000000');
+    const deliveryId = existingDeliveryId || generateUUID();
 
     const deliveryRecord: DailyDelivery = {
       id: deliveryId,
@@ -615,9 +704,8 @@ class Store {
     };
 
     const newItems: DeliveryItem[] = totals.items.map((item) => ({
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'i' + Math.random().toString(36).substr(2, 8) + '-0000-0000-0000-000000000000',
+      id: generateUUID(),
       delivery_id: deliveryId,
-
       product_id: item.productId,
       product_name: item.productName,
       category: item.category,
@@ -629,17 +717,13 @@ class Store {
       created_at: now,
     }));
 
-    // Update in-memory store
     this.data.deliveries = this.data.deliveries.filter((d) => d.id !== deliveryId);
     this.data.deliveries.push(deliveryRecord);
 
     this.data.deliveryItems = this.data.deliveryItems.filter((di) => di.delivery_id !== deliveryId);
     this.data.deliveryItems.push(...newItems);
 
-    // Save to local storage
     this.saveToStorage();
-
-    // Queue in IndexedDB if offline or for sync resilience
     await queueOfflineDelivery(deliveryRecord, newItems);
 
     this.logAudit('DELIVERY_RECORD', 'DELIVERY', deliveryId, {
@@ -653,7 +737,6 @@ class Store {
 
     this.notify();
 
-    // Direct cloud push to Supabase if online
     if (isSupabaseConfigured()) {
       try {
         await supabase.from('daily_deliveries').upsert(
@@ -707,53 +790,235 @@ class Store {
     return { delivery: deliveryRecord, items: newItems, isDuplicate: false };
   }
 
-  // --- Cloud Sync & Offline Sync Handlers ---
+  // --- Cloud Sync & Realtime Handlers ---
   public async fetchLiveCloudData() {
     if (!isSupabaseConfigured()) return;
     try {
       await this.ensureCloudBaseData();
 
-      const { data: cloudDeliveries, error: delErr } = await supabase.from('daily_deliveries').select('*');
-      if (!delErr && cloudDeliveries) {
-        this.data.deliveries = cloudDeliveries;
-        this.saveToStorage();
+      const [
+        { data: cloudUsers },
+        { data: cloudRoutes },
+        { data: cloudCustomers },
+        { data: cloudProducts },
+        { data: cloudCustProds },
+        { data: cloudDeliveries },
+        { data: cloudItems },
+        { data: cloudPayments },
+        { data: cloudInvoices },
+        { data: cloudAuditLogs },
+        { data: cloudProfile },
+      ] = await Promise.all([
+        supabase.from('users').select('*'),
+        supabase.from('routes').select('*'),
+        supabase.from('customers').select('*'),
+        supabase.from('products').select('*'),
+        supabase.from('customer_products').select('*'),
+        supabase.from('daily_deliveries').select('*'),
+        supabase.from('delivery_items').select('*'),
+        supabase.from('payments').select('*'),
+        supabase.from('monthly_invoices').select('*'),
+        supabase.from('audit_logs').select('*'),
+        supabase.from('agency_profile').select('*').single(),
+      ]);
+
+      if (cloudUsers && cloudUsers.length > 0) {
+        this.data.users = cloudUsers;
+      } else if (this.data.users.length > 0) {
+        pushToCloud(supabase.from('users').upsert(this.data.users), 'Auto-migrate users error');
       }
 
-      const { data: cloudItems, error: itemErr } = await supabase.from('delivery_items').select('*');
-      if (!itemErr && cloudItems) {
-        this.data.deliveryItems = cloudItems;
-        this.saveToStorage();
+      if (cloudRoutes && cloudRoutes.length > 0) {
+        this.data.routes = cloudRoutes;
+      } else if (this.data.routes.length > 0) {
+        pushToCloud(supabase.from('routes').upsert(this.data.routes), 'Auto-migrate routes error');
       }
 
-      const { data: cloudPayments, error: payErr } = await supabase.from('payments').select('*');
-      if (!payErr && cloudPayments) {
-        this.data.payments = cloudPayments;
-        this.saveToStorage();
+      if (cloudCustomers && cloudCustomers.length > 0) {
+        this.data.customers = cloudCustomers;
+      } else if (this.data.customers.length > 0) {
+        pushToCloud(supabase.from('customers').upsert(this.data.customers), 'Auto-migrate customers error');
       }
 
+      if (cloudProducts && cloudProducts.length > 0) {
+        this.data.products = cloudProducts;
+      } else if (this.data.products.length > 0) {
+        pushToCloud(supabase.from('products').upsert(this.data.products), 'Auto-migrate products error');
+      }
+
+      if (cloudCustProds && cloudCustProds.length > 0) {
+        this.data.customerProducts = cloudCustProds;
+      } else if (this.data.customerProducts.length > 0) {
+        pushToCloud(supabase.from('customer_products').upsert(this.data.customerProducts), 'Auto-migrate customer_products error');
+      }
+
+      if (cloudDeliveries) this.data.deliveries = cloudDeliveries;
+      if (cloudItems) this.data.deliveryItems = cloudItems;
+      if (cloudPayments) this.data.payments = cloudPayments;
+      if (cloudInvoices) this.data.invoices = cloudInvoices;
+      if (cloudAuditLogs) this.data.auditLogs = cloudAuditLogs;
+      if (cloudProfile) this.data.agencyProfile = cloudProfile;
+
+      this.saveToStorage();
       this.notify();
     } catch (e) {
       console.error('Error fetching live cloud data from Supabase', e);
     }
   }
 
+  private setupRealtimeSubscription() {
+    if (!isSupabaseConfigured() || typeof window === 'undefined') return;
+    if (this.realtimeChannel) return;
 
+    try {
+      this.realtimeChannel = supabase
+        .channel('ss-agency-realtime-all')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (payload) => {
+            console.log('⚡ Realtime Supabase event received:', payload.table, payload.eventType);
+            this.lastRealtimeEvent = {
+              table: payload.table,
+              eventType: payload.eventType,
+              timestamp: new Date().toLocaleTimeString(),
+            };
+            this.handleRealtimePayload(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Connected to Supabase Realtime Channel');
+            this.realtimeConnected = true;
+            this.notify();
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            this.realtimeConnected = false;
+            this.notify();
+          }
+        });
+    } catch (err) {
+      console.error('Failed to initialize Supabase Realtime channel', err);
+    }
+  }
+
+  private handleRealtimePayload(payload: any) {
+    const { table, eventType, new: newRow, old: oldRow } = payload;
+    if (!table) return;
+
+    switch (table) {
+      case 'users':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.users = this.data.users.filter((u) => u.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.users.findIndex((u) => u.id === newRow.id);
+          if (idx >= 0) this.data.users[idx] = { ...this.data.users[idx], ...newRow };
+          else this.data.users.push(newRow);
+        }
+        break;
+
+      case 'routes':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.routes = this.data.routes.filter((r) => r.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.routes.findIndex((r) => r.id === newRow.id);
+          if (idx >= 0) this.data.routes[idx] = { ...this.data.routes[idx], ...newRow };
+          else this.data.routes.push(newRow);
+        }
+        break;
+
+      case 'customers':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.customers = this.data.customers.filter((c) => c.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.customers.findIndex((c) => c.id === newRow.id);
+          if (idx >= 0) this.data.customers[idx] = { ...this.data.customers[idx], ...newRow };
+          else this.data.customers.push(newRow);
+        }
+        break;
+
+      case 'products':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.products = this.data.products.filter((p) => p.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.products.findIndex((p) => p.id === newRow.id);
+          if (idx >= 0) this.data.products[idx] = { ...this.data.products[idx], ...newRow };
+          else this.data.products.push(newRow);
+        }
+        break;
+
+      case 'customer_products':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.customerProducts = this.data.customerProducts.filter((cp) => cp.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.customerProducts.findIndex((cp) => cp.id === newRow.id);
+          if (idx >= 0) this.data.customerProducts[idx] = { ...this.data.customerProducts[idx], ...newRow };
+          else this.data.customerProducts.push(newRow);
+        }
+        break;
+
+      case 'daily_deliveries':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.deliveries = this.data.deliveries.filter((d) => d.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.deliveries.findIndex((d) => d.id === newRow.id || d.idempotency_key === newRow.idempotency_key);
+          if (idx >= 0) this.data.deliveries[idx] = { ...this.data.deliveries[idx], ...newRow };
+          else this.data.deliveries.push(newRow);
+        }
+        break;
+
+      case 'delivery_items':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.deliveryItems = this.data.deliveryItems.filter((di) => di.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.deliveryItems.findIndex((di) => di.id === newRow.id);
+          if (idx >= 0) this.data.deliveryItems[idx] = { ...this.data.deliveryItems[idx], ...newRow };
+          else this.data.deliveryItems.push(newRow);
+        }
+        break;
+
+      case 'payments':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.payments = this.data.payments.filter((p) => p.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.payments.findIndex((p) => p.id === newRow.id);
+          if (idx >= 0) this.data.payments[idx] = { ...this.data.payments[idx], ...newRow };
+          else this.data.payments.push(newRow);
+        }
+        break;
+
+      case 'monthly_invoices':
+        if (eventType === 'DELETE' && oldRow?.id) {
+          this.data.invoices = this.data.invoices.filter((inv) => inv.id !== oldRow.id);
+        } else if (newRow?.id) {
+          const idx = this.data.invoices.findIndex((inv) => inv.id === newRow.id);
+          if (idx >= 0) this.data.invoices[idx] = { ...this.data.invoices[idx], ...newRow };
+          else this.data.invoices.push(newRow);
+        }
+        break;
+
+      case 'agency_profile':
+        if (newRow) {
+          this.data.agencyProfile = { ...this.data.agencyProfile, ...newRow };
+        }
+        break;
+    }
+
+    this.saveToStorage();
+    this.notify();
+  }
 
   private async ensureCloudBaseData() {
     try {
       const { data: existingUsers } = await supabase.from('users').select('id').limit(1);
       if (!existingUsers || existingUsers.length === 0) {
         await supabase.from('users').upsert(INITIAL_USERS);
-        await supabase.from('routes').upsert(INITIAL_ROUTES);
         await supabase.from('products').upsert(INITIAL_PRODUCTS);
-        await supabase.from('customers').upsert(INITIAL_CUSTOMERS);
-        await supabase.from('customer_products').upsert(INITIAL_CUSTOMER_PRODUCTS);
+        await supabase.from('agency_profile').upsert({ id: 1, ...INITIAL_AGENCY_PROFILE });
       }
     } catch (e) {
       console.error('Error ensuring cloud base data', e);
     }
   }
-
 
   private initAutoSync() {
     if (typeof window === 'undefined') return;
@@ -761,6 +1026,7 @@ class Store {
     window.addEventListener('online', () => {
       console.log('Network connected. Triggering offline sync...');
       this.syncPendingOfflineQueue();
+      this.fetchLiveCloudData();
     });
   }
 
@@ -831,7 +1097,6 @@ class Store {
     }
   }
 
-
   // --- Payments & Advances ---
   public getPayments(customerId?: string): Payment[] {
     return this.data.payments.filter((p) => (!customerId ? true : p.customer_id === customerId));
@@ -840,7 +1105,7 @@ class Store {
   public recordPayment(payment: Omit<Payment, 'id' | 'created_at'>): Payment {
     const now = new Date().toISOString();
     const newPayment: Payment = {
-      id: 'pay-' + Math.random().toString(36).substr(2, 9),
+      id: generateUUID(),
       created_at: now,
       created_by: this.data.currentUser?.id,
       ...payment,
@@ -854,7 +1119,13 @@ class Store {
       method: payment.payment_method,
     });
 
+    this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('payments').upsert(newPayment), 'Record payment error');
+    }
+
     return newPayment;
   }
 
@@ -872,17 +1143,14 @@ class Store {
     const generated: MonthlyInvoice[] = [];
 
     for (const customer of activeCustomers) {
-      // Get all deliveries in this month
       const monthDeliveries = this.data.deliveries.filter(
         (d) => d.customer_id === customer.id && d.delivery_date.startsWith(monthYear)
       );
 
-      // Get payments in this month
       const monthPayments = this.data.payments.filter(
         (p) => p.customer_id === customer.id && p.payment_date.startsWith(monthYear)
       );
 
-      // Get previous balance/credit
       const previousInvoices = this.data.invoices.filter(
         (inv) => inv.customer_id === customer.id && inv.month_year < monthYear
       );
@@ -896,7 +1164,7 @@ class Store {
       );
 
       const invoiceRecord: MonthlyInvoice = {
-        id: existingIdx >= 0 ? this.data.invoices[existingIdx].id : 'inv-' + Math.random().toString(36).substr(2, 9),
+        id: existingIdx >= 0 ? this.data.invoices[existingIdx].id : generateUUID(),
         invoice_number: invoiceNum,
         customer_id: customer.id,
         month_year: monthYear,
@@ -920,7 +1188,13 @@ class Store {
     }
 
     this.logAudit('INVOICES_GENERATED', 'INVOICE', monthYear, { count: generated.length });
+    this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured() && generated.length > 0) {
+      pushToCloud(supabase.from('monthly_invoices').upsert(generated), 'Monthly invoices error');
+    }
+
     return generated;
   }
 
@@ -989,7 +1263,7 @@ class Store {
       );
 
       const totalProductAmount = periodDeliveries.reduce((sum, d) => sum + d.product_total, 0);
-      const totalDeliveryCharges = 0; // Zero delivery charges for bulk orders
+      const totalDeliveryCharges = 0;
       const grandTotal = totalProductAmount;
       const advancePaid = periodPayments.reduce((sum, p) => sum + p.amount, 0);
       const amountPayable = Math.max(0, grandTotal - advancePaid);
@@ -1001,7 +1275,7 @@ class Store {
       );
 
       const invoiceRecord: MonthlyInvoice = {
-        id: existingIdx >= 0 ? this.data.invoices[existingIdx].id : 'inv-blk-' + Math.random().toString(36).substr(2, 9),
+        id: existingIdx >= 0 ? this.data.invoices[existingIdx].id : generateUUID(),
         invoice_number: invoiceNum,
         customer_id: customer.id,
         month_year: keySuffix,
@@ -1031,6 +1305,11 @@ class Store {
     this.logAudit('BULK_INVOICES_GENERATED', 'INVOICE', keySuffix, { count: generated.length, period: billingPeriod });
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured() && generated.length > 0) {
+      pushToCloud(supabase.from('monthly_invoices').upsert(generated), 'Bulk invoices error');
+    }
+
     return generated;
   }
 
@@ -1041,7 +1320,7 @@ class Store {
 
   public logAudit(action: string, entity_type: string, entity_id?: string, details?: Record<string, any>) {
     const log: AuditLog = {
-      id: 'log-' + Math.random().toString(36).substr(2, 9),
+      id: generateUUID(),
       user_id: this.data.currentUser?.id,
       user_name: this.data.currentUser?.name || 'System',
       action,
@@ -1051,6 +1330,10 @@ class Store {
       created_at: new Date().toISOString(),
     };
     this.data.auditLogs.push(log);
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('audit_logs').upsert(log), 'Audit log error');
+    }
   }
 
   // --- Agency Profile & Signature ---
@@ -1066,6 +1349,11 @@ class Store {
     this.data.agencyProfile = { ...current, ...profile };
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('agency_profile').upsert({ id: 1, ...this.data.agencyProfile }), 'Agency profile error');
+    }
+
     return this.data.agencyProfile;
   }
 
@@ -1080,6 +1368,10 @@ class Store {
     (this.data as any).signatureImage = imageUrl;
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('agency_profile').upsert({ id: 1, ...profile, signature_url: imageUrl || undefined }), 'Signature update error');
+    }
   }
 
   public getPaymentQR(): string | null {
@@ -1092,6 +1384,10 @@ class Store {
     profile.payment_qr_url = qrUrl || undefined;
     this.saveToStorage();
     this.notify();
+
+    if (isSupabaseConfigured()) {
+      pushToCloud(supabase.from('agency_profile').upsert({ id: 1, ...profile, payment_qr_url: qrUrl || undefined }), 'QR update error');
+    }
   }
 }
 

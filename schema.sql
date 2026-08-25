@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK (role IN ('ADMIN', 'DELIVERY_BOY')),
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
   username TEXT UNIQUE,
+  password TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -38,6 +39,10 @@ CREATE TABLE IF NOT EXISTS customers (
   route_id UUID REFERENCES routes(id) ON DELETE RESTRICT,
   delivery_boy_id UUID REFERENCES users(id) ON DELETE RESTRICT,
   payment_type TEXT NOT NULL DEFAULT 'MONTHLY_ADVANCE' CHECK (payment_type IN ('MONTHLY_ADVANCE', 'DAILY_CASH', 'WEEKLY')),
+  customer_category TEXT DEFAULT 'RESIDENTIAL',
+  establishment_type TEXT,
+  is_bulk_order BOOLEAN DEFAULT false,
+  bulk_billing_cycle TEXT,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -53,6 +58,8 @@ CREATE TABLE IF NOT EXISTS products (
   packet_size_ml INT NOT NULL,
   price NUMERIC(10, 2) NOT NULL,
   active BOOLEAN NOT NULL DEFAULT true,
+  icon TEXT,
+  image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -121,7 +128,11 @@ CREATE TABLE IF NOT EXISTS monthly_invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_number TEXT NOT NULL UNIQUE,
   customer_id UUID REFERENCES customers(id) ON DELETE RESTRICT,
-  month_year VARCHAR(7) NOT NULL,
+  month_year TEXT NOT NULL,
+  billing_period TEXT,
+  period_label TEXT,
+  date_start DATE,
+  date_end DATE,
   total_product_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
   total_delivery_charges NUMERIC(10, 2) NOT NULL DEFAULT 0,
   grand_total NUMERIC(10, 2) NOT NULL DEFAULT 0,
@@ -144,6 +155,27 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 11. Agency Profile table
+CREATE TABLE IF NOT EXISTS agency_profile (
+  id INT PRIMARY KEY DEFAULT 1,
+  business_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  gstin TEXT,
+  email TEXT,
+  account_beginning_date DATE,
+  business_type TEXT,
+  business_category TEXT,
+  state TEXT,
+  pincode TEXT,
+  address TEXT,
+  logo_url TEXT,
+  signature_url TEXT,
+  payment_qr_url TEXT,
+  terms_conditions TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Create Indexes for fast querying
 CREATE INDEX IF NOT EXISTS idx_customers_route ON customers(route_id);
 CREATE INDEX IF NOT EXISTS idx_customers_delivery_boy ON customers(delivery_boy_id);
@@ -162,6 +194,7 @@ ALTER TABLE delivery_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monthly_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agency_profile ENABLE ROW LEVEL SECURITY;
 
 -- Public Anon Policies for Client App Access (Allows Website & Mobile APK to sync seamlessly)
 CREATE POLICY anon_all_users ON users FOR ALL USING (true) WITH CHECK (true);
@@ -174,5 +207,10 @@ CREATE POLICY anon_all_delivery_items ON delivery_items FOR ALL USING (true) WIT
 CREATE POLICY anon_all_payments ON payments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY anon_all_monthly_invoices ON monthly_invoices FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY anon_all_audit_logs ON audit_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY anon_all_agency_profile ON agency_profile FOR ALL USING (true) WITH CHECK (true);
+
+-- Enable Realtime Publication for instant multi-device live sync
+ALTER PUBLICATION supabase_realtime ADD TABLE users, routes, customers, products, customer_products, daily_deliveries, delivery_items, payments, monthly_invoices, audit_logs, agency_profile;
+
 
 
