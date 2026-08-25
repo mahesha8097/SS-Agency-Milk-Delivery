@@ -21,12 +21,9 @@ import {
   MessageSquare,
   AlertTriangle,
   Clock,
-  Sparkles,
-  ShieldAlert,
-  ArrowRight,
-  Info,
+  Calendar as CalendarIcon,
   Copy,
-  Zap,
+  Info,
 } from 'lucide-react';
 
 export default function DeliveryBoyPage() {
@@ -54,6 +51,9 @@ export default function DeliveryBoyPage() {
 
   const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const isPastDate = dateStr !== '' && dateStr < todayStr;
 
   useEffect(() => {
     setDateStr(new Date().toISOString().split('T')[0]);
@@ -103,7 +103,7 @@ export default function DeliveryBoyPage() {
     return customers.find((c) => c.id === selectedCustomerId) || filteredCustomers[0] || null;
   }, [customers, filteredCustomers, selectedCustomerId]);
 
-  // Load customer form state when active customer changes
+  // Load customer form state when active customer or dateStr changes
   useEffect(() => {
     if (activeCustomer) {
       loadCustomerFormData(activeCustomer);
@@ -263,13 +263,13 @@ export default function DeliveryBoyPage() {
     }
   };
 
-  // COPY YESTERDAY'S DELIVERY FOR ACTIVE CUSTOMER
-  const handleCopyYesterday = (cust: Customer | null = activeCustomer): boolean => {
-    if (!cust) return false;
+  // SINGLE UNIFIED "COPY YESTERDAY" BUTTON HANDLER
+  const handleCopyYesterday = () => {
+    if (!activeCustomer) return;
     const yesterday = new Date(Date.parse(dateStr || new Date().toISOString()) - 86400000)
       .toISOString()
       .split('T')[0];
-    const prevDelivery = store.getExistingDelivery(cust.id, yesterday);
+    const prevDelivery = store.getExistingDelivery(activeCustomer.id, yesterday);
     const allProds = store.getProducts().filter((p) => p.active);
     const defaults: { [key: string]: number } = {};
     const extraIds: string[] = [];
@@ -280,7 +280,7 @@ export default function DeliveryBoyPage() {
         const item = items.find((i) => i.product_id === p.id);
         defaults[p.id] = item ? item.packets_count : 0;
         if (item && item.packets_count > 0) {
-          const custReqs = store.getCustomerProducts(cust.id);
+          const custReqs = store.getCustomerProducts(activeCustomer.id);
           const isReq = custReqs.some((cr) => cr.product_id === p.id && cr.default_packets > 0);
           if (!isReq) extraIds.push(p.id);
         }
@@ -288,107 +288,18 @@ export default function DeliveryBoyPage() {
       setPacketCounts(defaults);
       setAdditionalProductIds(extraIds);
       setDeliveryStatus('DELIVERED');
-      setToastMessage(`✓ Copied yesterday's packets for ${cust.name}`);
-      setTimeout(() => setToastMessage(null), 1200);
-      return true;
+      setToastMessage(`✓ Copied yesterday's packets for ${activeCustomer.name}`);
+      setTimeout(() => setToastMessage(null), 1500);
     } else {
-      // Fallback: reset to customer regular requirements
-      const custReqs = store.getCustomerProducts(cust.id);
+      const custReqs = store.getCustomerProducts(activeCustomer.id);
       allProds.forEach((p) => {
         const req = custReqs.find((cr) => cr.product_id === p.id);
         defaults[p.id] = req ? req.default_packets : 0;
       });
       setPacketCounts(defaults);
-      setToastMessage(`No delivery recorded yesterday; loaded regular requirements.`);
+      setToastMessage(`No delivery recorded yesterday; reset to regular requirements.`);
       setTimeout(() => setToastMessage(null), 1500);
-      return false;
     }
-  };
-
-  // ONE-TAP: COPY YESTERDAY & DELIVER ➔
-  const handleCopyYesterdayAndDeliver = async () => {
-    if (!activeCustomer || !currentUser) return;
-    const yesterday = new Date(Date.parse(dateStr || new Date().toISOString()) - 86400000)
-      .toISOString()
-      .split('T')[0];
-    const prevDelivery = store.getExistingDelivery(activeCustomer.id, yesterday);
-    let entriesToSave: { productId: string; packetsCount: number }[] = [];
-
-    if (prevDelivery) {
-      const items = store.getDeliveryItems(prevDelivery.id);
-      entriesToSave = items.map((i) => ({
-        productId: i.product_id,
-        packetsCount: i.packets_count,
-      }));
-    } else {
-      const custReqs = store.getCustomerProducts(activeCustomer.id);
-      entriesToSave = custReqs.map((cr) => ({
-        productId: cr.product_id,
-        packetsCount: cr.default_packets,
-      }));
-    }
-
-    await handleSaveDelivery('DELIVERED', entriesToSave);
-  };
-
-  // BULK OPTION: COPY YESTERDAY FOR ALL PENDING ROUTE CUSTOMERS
-  const handleBulkCopyYesterdayForAll = async () => {
-    if (!currentUser || customers.length === 0) return;
-    const yesterday = new Date(Date.parse(dateStr || new Date().toISOString()) - 86400000)
-      .toISOString()
-      .split('T')[0];
-
-    const pendingCusts = customers.filter((c) => !store.getExistingDelivery(c.id, dateStr));
-    if (pendingCusts.length === 0) {
-      alert("All customers on this route already have today's delivery recorded!");
-      return;
-    }
-
-    if (
-      !confirm(
-        `Copy yesterday's delivery records for ${pendingCusts.length} pending customer(s) on this route today?`
-      )
-    ) {
-      return;
-    }
-
-    setSaving(true);
-    let copiedCount = 0;
-    for (const cust of pendingCusts) {
-      const prevDelivery = store.getExistingDelivery(cust.id, yesterday);
-      let packetEntriesToSave: { productId: string; packetsCount: number }[] = [];
-
-      if (prevDelivery) {
-        const items = store.getDeliveryItems(prevDelivery.id);
-        packetEntriesToSave = items.map((i) => ({
-          productId: i.product_id,
-          packetsCount: i.packets_count,
-        }));
-      } else {
-        const custReqs = store.getCustomerProducts(cust.id);
-        packetEntriesToSave = custReqs.map((cr) => ({
-          productId: cr.product_id,
-          packetsCount: cr.default_packets,
-        }));
-      }
-
-      if (packetEntriesToSave.length > 0) {
-        await store.saveDailyDelivery(
-          cust.id,
-          currentUser.id,
-          cust.route_id,
-          dateStr,
-          'DELIVERED',
-          packetEntriesToSave,
-          'Copied from yesterday',
-          undefined
-        );
-        copiedCount++;
-      }
-    }
-    setSaving(false);
-    alert(`✓ Successfully recorded today's delivery for ${copiedCount} customers based on yesterday!`);
-    reloadData();
   };
 
   const handleAddExtraProduct = (prodId: string) => {
@@ -406,11 +317,11 @@ export default function DeliveryBoyPage() {
     <Navigation>
       <div className="min-h-screen bg-slate-100 text-slate-800 antialiased pb-16 lg:pb-6">
         
-        {/* TOP COMPACT HEADER BAR */}
+        {/* TOP COMPACT HEADER BAR WITH CALENDAR DATE PICKER */}
         <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
           <div className="max-w-7xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
             
-            {/* Title & Route Info */}
+            {/* Title & Route Info + Calendar Date Picker */}
             <div className="flex items-center space-x-2 min-w-0">
               {/* Mobile Drawer Toggle */}
               <button
@@ -428,25 +339,53 @@ export default function DeliveryBoyPage() {
                     {assignedRoute?.name || 'Assigned Route'}
                   </h1>
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium truncate">
-                  Date: <b>{dateStr}</b> • Delivery Boy: <b>{currentUser?.name}</b>
+
+                {/* Calendar Date Picker Control */}
+                <div className="flex items-center space-x-1 text-[11px] text-slate-600 mt-0.5">
+                  <span className="font-semibold hidden sm:inline">Date:</span>
+                  <div className="flex items-center space-x-1 bg-slate-100 border border-slate-300 rounded-md px-1.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prevDate = new Date(Date.parse(dateStr || todayStr) - 86400000)
+                          .toISOString()
+                          .split('T')[0];
+                        setDateStr(prevDate);
+                      }}
+                      className="text-slate-600 hover:text-slate-900 font-bold px-0.5"
+                      title="Previous Day"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+
+                    <CalendarIcon className="w-3.5 h-3.5 text-nandini-blue shrink-0" />
+                    <input
+                      type="date"
+                      value={dateStr}
+                      onChange={(e) => setDateStr(e.target.value)}
+                      className="bg-transparent text-[11px] font-bold text-slate-900 focus:outline-none cursor-pointer"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextDate = new Date(Date.parse(dateStr || todayStr) + 86400000)
+                          .toISOString()
+                          .split('T')[0];
+                        setDateStr(nextDate);
+                      }}
+                      className="text-slate-600 hover:text-slate-900 font-bold px-0.5"
+                      title="Next Day"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Bulk Action & Progress Badge */}
-            <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-              {/* Bulk Copy Yesterday Button */}
-              <button
-                type="button"
-                onClick={handleBulkCopyYesterdayForAll}
-                className="hidden sm:flex items-center space-x-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs"
-                title="Copy yesterday's delivery records for all pending customers on this route"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-600" />
-                <span>Repeat Yesterday (All)</span>
-              </button>
-
+            {/* Progress Badge */}
+            <div className="flex items-center space-x-3 shrink-0">
               <div className="text-right">
                 <div className="text-sm md:text-base font-black text-slate-900 leading-none">
                   {deliveredCount} / {totalCount}
@@ -477,20 +416,11 @@ export default function DeliveryBoyPage() {
             <div className="hidden lg:block lg:col-span-4 bg-white rounded-xl border border-slate-200 p-4 space-y-3 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col shadow-2xs">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h2 className="font-extrabold text-sm uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
-                  <span>Today's Customers</span>
+                  <span>Customers ({dateStr})</span>
                   <span className="text-xs bg-blue-50 text-nandini-blue px-2 py-0.5 rounded-full font-mono">
                     {filteredCustomers.length}
                   </span>
                 </h2>
-
-                <button
-                  type="button"
-                  onClick={handleBulkCopyYesterdayForAll}
-                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded border border-amber-200 flex items-center space-x-1"
-                >
-                  <Copy className="w-3 h-3 text-amber-600" />
-                  <span>Repeat All</span>
-                </button>
               </div>
 
               {/* Sidebar Search Input */}
@@ -539,7 +469,7 @@ export default function DeliveryBoyPage() {
                         {isDone ? (
                           <span className="text-emerald-700 flex items-center space-x-1 bg-emerald-100 px-2 py-0.5 rounded-full">
                             <Check className="w-3 h-3" />
-                            <span>Done</span>
+                            <span>Done ({del.total_milk_litres}L)</span>
                           </span>
                         ) : isActive ? (
                           <span className="text-nandini-blue font-bold">→ Active</span>
@@ -554,10 +484,27 @@ export default function DeliveryBoyPage() {
             </div>
 
             {/* =================================================== */}
-            {/* RIGHT COLUMN: COMPACT DELIVERY CARD & ACTIONS (Desktop + Mobile) */}
+            {/* RIGHT COLUMN: COMPACT DELIVERY CARD & ACTIONS */}
             {/* =================================================== */}
             <div className="w-full lg:col-span-8 space-y-3">
               
+              {/* Past Date Warning Indicator Banner */}
+              {isPastDate && (
+                <div className="bg-amber-50 border border-amber-300 text-amber-900 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center space-x-2">
+                    <CalendarIcon className="w-4 h-4 text-amber-700" />
+                    <span>Viewing Past Delivery Details for <b>{dateStr}</b></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDateStr(todayStr)}
+                    className="text-nandini-blue underline text-[11px] hover:text-blue-900"
+                  >
+                    Go to Today
+                  </button>
+                </div>
+              )}
+
               {/* Toast Confirmation Message */}
               {toastMessage && (
                 <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-between shadow-md animate-fadeIn">
@@ -630,13 +577,13 @@ export default function DeliveryBoyPage() {
                     </div>
                   </div>
 
-                  {/* Duplicate / Existing Delivery Alert Banner */}
+                  {/* Recorded Delivery Status Banner for Selected Date */}
                   {activeExistingDelivery && (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-lg text-xs flex items-center justify-between">
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-2.5 rounded-lg text-xs flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                         <span>
-                          Today's delivery recorded (<b>{activeExistingDelivery.total_milk_litres}L Milk</b>). Editing updates record.
+                          Delivery recorded for <b>{dateStr}</b> (<b>{activeExistingDelivery.total_milk_litres}L Milk</b>). Editing updates record.
                         </span>
                       </div>
                     </div>
@@ -646,25 +593,25 @@ export default function DeliveryBoyPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs flex-wrap gap-1">
                       <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
-                        Today's Items (Packet Qty)
+                        Items for {dateStr} (Packet Qty)
                       </span>
 
                       <div className="flex items-center space-x-2">
-                        {/* Copy Yesterday's Packets Button */}
+                        {/* SINGLE UNIFIED COPY YESTERDAY BUTTON */}
                         <button
                           type="button"
-                          onClick={() => handleCopyYesterday()}
-                          className="text-slate-700 hover:text-slate-900 font-bold text-xs flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-200 transition"
+                          onClick={handleCopyYesterday}
+                          className="text-slate-700 hover:text-slate-900 font-bold text-xs flex items-center space-x-1 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-300 transition"
                           title="Copy yesterday's packet counts for this customer"
                         >
-                          <Copy className="w-3.5 h-3.5 text-blue-600" />
+                          <Copy className="w-3.5 h-3.5 text-nandini-blue" />
                           <span>📋 Copy Yesterday</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setShowAddProductModal(true)}
-                          className="text-nandini-blue hover:underline font-bold text-xs flex items-center space-x-1 bg-blue-50 px-2.5 py-1 rounded-md"
+                          className="text-nandini-blue hover:underline font-bold text-xs flex items-center space-x-1 bg-blue-50 px-2 py-1 rounded-md"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>+ Add Product</span>
@@ -777,8 +724,8 @@ export default function DeliveryBoyPage() {
                     </div>
                   </div>
 
-                  {/* MAIN ACTION BUTTONS: [ ✓ DELIVERED ] + [ 📋 REPEAT YESTERDAY & DELIVER ➔ ] */}
-                  <div className="pt-2 space-y-2 relative">
+                  {/* MAIN ACTION BUTTONS: [ ✓ DELIVERED ] + [ More ▼ ] */}
+                  <div className="pt-2 relative">
                     <div className="flex items-center space-x-2">
                       {/* Main Save & Deliver Button */}
                       <button
@@ -792,28 +739,16 @@ export default function DeliveryBoyPage() {
                           {saving
                             ? 'Saving...'
                             : activeExistingDelivery
-                            ? '✓ UPDATE DELIVERY'
+                            ? `✓ UPDATE DELIVERY (${dateStr})`
                             : '✓ DELIVERED'}
                         </span>
-                      </button>
-
-                      {/* One-Tap Copy Yesterday & Deliver Button */}
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={handleCopyYesterdayAndDeliver}
-                        className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white py-3.5 px-3 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center space-x-1 shrink-0 touch-manipulation"
-                        title="Copy yesterday's delivery and save immediately in 1 tap"
-                      >
-                        <Zap className="w-4 h-4 fill-white" />
-                        <span>Repeat Yesterday ➔</span>
                       </button>
 
                       {/* Dropdown toggle for alternative statuses */}
                       <button
                         type="button"
                         onClick={() => setShowMoreStatus((prev) => !prev)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-3.5 rounded-xl font-bold text-xs border border-slate-300 flex items-center space-x-1 shrink-0"
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-3.5 rounded-xl font-bold text-xs border border-slate-300 flex items-center space-x-1 shrink-0"
                       >
                         <span>More</span>
                         <ChevronDown className="w-4 h-4" />
@@ -869,9 +804,7 @@ export default function DeliveryBoyPage() {
           </div>
         </div>
 
-        {/* =================================================== */}
-        {/* MOBILE OVERLAY DRAWER: CUSTOMER LIST (Hidden on Desktop) */}
-        {/* =================================================== */}
+        {/* MOBILE OVERLAY DRAWER: CUSTOMER LIST */}
         {showCustomerDrawer && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-start lg:hidden">
             <div className="w-4/5 max-w-xs bg-white h-full p-4 space-y-3 flex flex-col shadow-2xl animate-slideRight">
@@ -887,19 +820,6 @@ export default function DeliveryBoyPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
-              {/* Bulk Copy Yesterday button inside mobile drawer */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCustomerDrawer(false);
-                  handleBulkCopyYesterdayForAll();
-                }}
-                className="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-600" />
-                <span>Repeat Yesterday for All</span>
-              </button>
 
               {/* Mobile Drawer Search Input */}
               <div className="relative">
@@ -950,9 +870,7 @@ export default function DeliveryBoyPage() {
           </div>
         )}
 
-        {/* =================================================== */}
         {/* MODAL: + ADD EXTRA PRODUCT */}
-        {/* =================================================== */}
         {showAddProductModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
             <div className="bg-white border border-slate-200 rounded-xl p-4 max-w-sm w-full space-y-3 shadow-2xl">
