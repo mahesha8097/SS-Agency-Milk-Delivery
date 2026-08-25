@@ -625,7 +625,22 @@ class Store {
     this.notify();
 
     if (isSupabaseConfigured()) {
-      pushToCloud(supabase.from('customers').upsert(updated), 'Save customer error');
+      const dbCustomerPayload = {
+        id: updated.id,
+        customer_code: updated.customer_code,
+        name: updated.name,
+        phone: updated.phone,
+        house_number: updated.house_number,
+        location: updated.location,
+        route_id: updated.route_id || null,
+        delivery_boy_id: updated.delivery_boy_id || null,
+        payment_type: updated.payment_type || 'MONTHLY_ADVANCE',
+        status: updated.status || 'ACTIVE',
+        notes: updated.notes || null,
+        created_at: updated.created_at,
+        updated_at: updated.updated_at,
+      };
+      pushToCloud(supabase.from('customers').upsert(dbCustomerPayload), 'Save customer error');
       pushToCloud(supabase.from('customer_products').delete().eq('customer_id', updated.id), 'Clear customer products error').then(() => {
         if (newReqs.length > 0) {
           pushToCloud(supabase.from('customer_products').upsert(newReqs), 'Save customer products error');
@@ -796,31 +811,27 @@ class Store {
     try {
       await this.ensureCloudBaseData();
 
-      const [
-        { data: cloudUsers },
-        { data: cloudRoutes },
-        { data: cloudCustomers },
-        { data: cloudProducts },
-        { data: cloudCustProds },
-        { data: cloudDeliveries },
-        { data: cloudItems },
-        { data: cloudPayments },
-        { data: cloudInvoices },
-        { data: cloudAuditLogs },
-        { data: cloudProfile },
-      ] = await Promise.all([
-        supabase.from('users').select('*'),
-        supabase.from('routes').select('*'),
-        supabase.from('customers').select('*'),
-        supabase.from('products').select('*'),
-        supabase.from('customer_products').select('*'),
-        supabase.from('daily_deliveries').select('*'),
-        supabase.from('delivery_items').select('*'),
-        supabase.from('payments').select('*'),
-        supabase.from('monthly_invoices').select('*'),
-        supabase.from('audit_logs').select('*'),
-        supabase.from('agency_profile').select('*').single(),
-      ]);
+      const safeSelect = async (table: string) => {
+        try {
+          const { data, error } = await supabase.from(table).select('*');
+          if (!error && data) return data;
+        } catch (e) {
+          console.warn(`Cloud fetch warning for ${table}:`, e);
+        }
+        return null;
+      };
+
+      const cloudUsers = await safeSelect('users');
+      const cloudRoutes = await safeSelect('routes');
+      const cloudCustomers = await safeSelect('customers');
+      const cloudProducts = await safeSelect('products');
+      const cloudCustProds = await safeSelect('customer_products');
+      const cloudDeliveries = await safeSelect('daily_deliveries');
+      const cloudItems = await safeSelect('delivery_items');
+      const cloudPayments = await safeSelect('payments');
+      const cloudInvoices = await safeSelect('monthly_invoices');
+      const cloudAuditLogs = await safeSelect('audit_logs');
+      const cloudProfiles = await safeSelect('agency_profile');
 
       if (cloudUsers && cloudUsers.length > 0) {
         this.data.users = cloudUsers;
@@ -857,7 +868,7 @@ class Store {
       if (cloudPayments) this.data.payments = cloudPayments;
       if (cloudInvoices) this.data.invoices = cloudInvoices;
       if (cloudAuditLogs) this.data.auditLogs = cloudAuditLogs;
-      if (cloudProfile) this.data.agencyProfile = cloudProfile;
+      if (cloudProfiles && cloudProfiles.length > 0) this.data.agencyProfile = cloudProfiles[0];
 
       this.saveToStorage();
       this.notify();
