@@ -1,43 +1,68 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Navigation from '@/components/Navigation';
-import PacketCounter from '@/components/PacketCounter';
 import { store } from '@/lib/store';
 import { Customer, Product, DeliveryStatus, DailyDelivery, Route } from '@/lib/types';
-import { calculateDeliveryTotals, calculateDeliveryCharge } from '@/lib/calculations';
-import { Search, CheckCircle, AlertTriangle, Clock, RefreshCw, Check, Edit2, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { calculateDeliveryTotals } from '@/lib/calculations';
+import {
+  Search,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Menu,
+  X,
+  Plus,
+  Minus,
+  MapPin,
+  Phone,
+  MessageSquare,
+  AlertTriangle,
+  Clock,
+  Sparkles,
+  ShieldAlert,
+  ArrowRight,
+  Info,
+} from 'lucide-react';
 
 export default function DeliveryBoyPage() {
   const currentUser = store.getCurrentUser();
 
   const [dateStr, setDateStr] = useState<string>('');
-
-  useEffect(() => {
-    setDateStr(new Date().toISOString().split('T')[0]);
-  }, []);
-
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [deliveries, setDeliveries] = useState<DailyDelivery[]>([]);
 
-  const [searchTerm, setSearchTerm] = useState('');
+  // Selection & Search State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCustomerDrawer, setShowCustomerDrawer] = useState(false);
 
-  // Delivery Entry Form State
+  // Delivery Form State
   const [packetCounts, setPacketCounts] = useState<{ [productId: string]: number }>({});
+  const [additionalProductIds, setAdditionalProductIds] = useState<string[]>([]);
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('DELIVERED');
   const [remarks, setRemarks] = useState('');
+  const [showRemarksInput, setShowRemarksInput] = useState(false);
+  const [showMoreStatus, setShowMoreStatus] = useState(false);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+
   const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDateStr(new Date().toISOString().split('T')[0]);
+  }, []);
 
   const reloadData = () => {
     if (!currentUser) return;
-    const date = new Date().toISOString().split('T')[0];
+    const date = dateStr || new Date().toISOString().split('T')[0];
     const assignedCusts = store.getCustomersByDeliveryBoy(currentUser.id);
     setCustomers(assignedCusts);
-    setProducts(store.getProducts());
+    setProducts(store.getProducts().filter((p) => p.active));
     setRoutes(store.getRoutes());
     setDeliveries(store.getDeliveries(date));
   };
@@ -45,76 +70,193 @@ export default function DeliveryBoyPage() {
   useEffect(() => {
     reloadData();
     const unsub = store.subscribe(reloadData);
-    return () => { unsub(); };
-  }, [currentUser]);
+    return () => {
+      unsub();
+    };
+  }, [currentUser, dateStr]);
 
+  // Filter customers by search term
+  const filteredCustomers = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(term) ||
+        c.house_number.toLowerCase().includes(term) ||
+        c.location.toLowerCase().includes(term) ||
+        c.customer_code.toLowerCase().includes(term) ||
+        c.phone.includes(term)
+    );
+  }, [customers, searchTerm]);
 
-  // Open delivery entry form for customer
-  const handleSelectCustomer = (cust: Customer) => {
-    setSelectedCustomerId(cust.id);
-    setSuccessMessage(null);
+  // Select initial customer if none selected
+  useEffect(() => {
+    if (filteredCustomers.length > 0 && !selectedCustomerId) {
+      // Pick first pending customer or first customer
+      const firstPending = filteredCustomers.find((c) => !store.getExistingDelivery(c.id, dateStr));
+      setSelectedCustomerId((firstPending || filteredCustomers[0]).id);
+    }
+  }, [filteredCustomers, selectedCustomerId, dateStr]);
 
-    // Check if delivery already exists today
-    const existing = store.getExistingDelivery(cust.id, dateStr || new Date().toISOString().split('T')[0]);
+  const activeCustomer = useMemo(() => {
+    return customers.find((c) => c.id === selectedCustomerId) || filteredCustomers[0] || null;
+  }, [customers, filteredCustomers, selectedCustomerId]);
 
-    const prods = store.getProducts();
+  // Load customer form state when active customer changes
+  useEffect(() => {
+    if (activeCustomer) {
+      loadCustomerFormData(activeCustomer);
+    }
+  }, [activeCustomer?.id, dateStr]);
+
+  const loadCustomerFormData = (cust: Customer) => {
+    setToastMessage(null);
+    setShowMoreStatus(false);
+    setShowAddProductModal(false);
+
+    const date = dateStr || new Date().toISOString().split('T')[0];
+    const existing = store.getExistingDelivery(cust.id, date);
+    const allProds = store.getProducts().filter((p) => p.active);
     const defaults: { [key: string]: number } = {};
+    const extraIds: string[] = [];
 
     if (existing) {
       setDeliveryStatus(existing.status);
       setRemarks(existing.remarks || '');
+      setShowRemarksInput(!!existing.remarks);
+
       const items = store.getDeliveryItems(existing.id);
-      prods.forEach((p) => {
+      allProds.forEach((p) => {
         const item = items.find((i) => i.product_id === p.id);
         defaults[p.id] = item ? item.packets_count : 0;
+        if (item && item.packets_count > 0) {
+          // Check if this was an extra product (not in regular requirements)
+          const custReqs = store.getCustomerProducts(cust.id);
+          const isReq = custReqs.some((cr) => cr.product_id === p.id && cr.default_packets > 0);
+          if (!isReq) extraIds.push(p.id);
+        }
       });
     } else {
       setDeliveryStatus('DELIVERED');
       setRemarks('');
+      setShowRemarksInput(false);
+
       const custReqs = store.getCustomerProducts(cust.id);
-      prods.forEach((p) => {
+      allProds.forEach((p) => {
         const req = custReqs.find((cr) => cr.product_id === p.id);
         defaults[p.id] = req ? req.default_packets : 0;
       });
     }
 
     setPacketCounts(defaults);
+    setAdditionalProductIds(extraIds);
   };
 
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
-  const existingDelivery = selectedCustomer ? store.getExistingDelivery(selectedCustomer.id, dateStr) : undefined;
+  const activeExistingDelivery = activeCustomer
+    ? store.getExistingDelivery(activeCustomer.id, dateStr)
+    : undefined;
+
   const assignedRoute = routes.find((r) => r.assigned_delivery_boy_id === currentUser?.id);
 
-  // Live totals calculation for current form entry
-  const packetEntries = Object.entries(packetCounts).map(([productId, packetsCount]) => ({
-    productId,
-    packetsCount,
-  }));
-  const liveTotals = calculateDeliveryTotals(packetEntries, products);
+  // Compute regular products to show (Regular Requirements + Additional Products)
+  const displayedProducts = useMemo(() => {
+    if (!activeCustomer) return [];
+    const custReqs = store.getCustomerProducts(activeCustomer.id);
+    const regularIds = new Set<string>();
 
-  const handleSaveDelivery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCustomer || !currentUser) return;
+    custReqs.forEach((cr) => {
+      if (cr.default_packets > 0) regularIds.add(cr.product_id);
+    });
+
+    // Add additional products picked via "+ Add Product"
+    additionalProductIds.forEach((id) => regularIds.add(id));
+
+    // Fallback: If customer has no regular defaults configured, show default milk products
+    if (regularIds.size === 0) {
+      products.forEach((p) => {
+        if (p.category === 'MILK') regularIds.add(p.id);
+      });
+    }
+
+    return products.filter((p) => regularIds.has(p.id));
+  }, [activeCustomer, additionalProductIds, products]);
+
+  // Non-displayed products for "+ Add Product" modal
+  const availableExtraProducts = useMemo(() => {
+    const displayedSet = new Set(displayedProducts.map((p) => p.id));
+    return products.filter((p) => !displayedSet.has(p.id));
+  }, [products, displayedProducts]);
+
+  // Live Calculations
+  const packetEntries = useMemo(() => {
+    return Object.entries(packetCounts).map(([productId, packetsCount]) => ({
+      productId,
+      packetsCount,
+    }));
+  }, [packetCounts]);
+
+  const isBulk = activeCustomer?.customer_category === 'BULK_ORDER' || activeCustomer?.is_bulk_order;
+  const liveTotals = calculateDeliveryTotals(packetEntries, products, !!isBulk);
+
+  // Navigation Index Helpers
+  const currentIndex = useMemo(() => {
+    if (!activeCustomer) return 0;
+    return filteredCustomers.findIndex((c) => c.id === activeCustomer.id);
+  }, [filteredCustomers, activeCustomer]);
+
+  const handlePrevCustomer = () => {
+    if (currentIndex > 0) {
+      setSelectedCustomerId(filteredCustomers[currentIndex - 1].id);
+    }
+  };
+
+  const handleNextCustomer = () => {
+    if (currentIndex < filteredCustomers.length - 1) {
+      setSelectedCustomerId(filteredCustomers[currentIndex + 1].id);
+    }
+  };
+
+  const getNextPendingCustomerId = (fromIdx: number): string | null => {
+    for (let i = fromIdx + 1; i < filteredCustomers.length; i++) {
+      const del = store.getExistingDelivery(filteredCustomers[i].id, dateStr);
+      if (!del) return filteredCustomers[i].id;
+    }
+    for (let i = 0; i < fromIdx; i++) {
+      const del = store.getExistingDelivery(filteredCustomers[i].id, dateStr);
+      if (!del) return filteredCustomers[i].id;
+    }
+    return fromIdx < filteredCustomers.length - 1 ? filteredCustomers[fromIdx + 1].id : null;
+  };
+
+  // Save Delivery Record & Fast Auto-Next
+  const handleSaveDelivery = async (statusOverride?: DeliveryStatus) => {
+    if (!activeCustomer || !currentUser) return;
+    const targetStatus = statusOverride || deliveryStatus;
 
     setSaving(true);
     try {
-      const result = await store.saveDailyDelivery(
-        selectedCustomer.id,
+      await store.saveDailyDelivery(
+        activeCustomer.id,
         currentUser.id,
-        selectedCustomer.route_id,
+        activeCustomer.route_id,
         dateStr,
-        deliveryStatus,
-        packetEntries,
+        targetStatus,
+        targetStatus === 'DELIVERED' ? packetEntries : [],
         remarks,
-        existingDelivery?.id
+        activeExistingDelivery?.id
       );
 
       setSaving(false);
-      setSuccessMessage(`Delivery recorded for ${selectedCustomer.name}!`);
+      setToastMessage(`✓ Saved for ${activeCustomer.name}`);
+
+      // Fast auto-advance to next customer after 400ms
       setTimeout(() => {
-        setSelectedCustomerId(null);
-        setSuccessMessage(null);
-      }, 1500);
+        setToastMessage(null);
+        const nextId = getNextPendingCustomerId(currentIndex);
+        if (nextId) {
+          setSelectedCustomerId(nextId);
+        }
+      }, 400);
     } catch (err) {
       console.error(err);
       setSaving(false);
@@ -122,270 +264,562 @@ export default function DeliveryBoyPage() {
     }
   };
 
-  const filteredCustomers = customers.filter((c) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      c.name.toLowerCase().includes(term) ||
-      c.house_number.toLowerCase().includes(term) ||
-      c.location.toLowerCase().includes(term) ||
-      c.customer_code.toLowerCase().includes(term)
-    );
-  });
+  const handleAddExtraProduct = (prodId: string) => {
+    setAdditionalProductIds((prev) => [...prev, prodId]);
+    setPacketCounts((prev) => ({ ...prev, [prodId]: prev[prodId] || 1 }));
+    setShowAddProductModal(false);
+  };
+
+  // Header Progress Calculations
+  const deliveredCount = deliveries.filter((d) => d.status === 'DELIVERED').length;
+  const totalCount = customers.length;
+  const progressPercent = totalCount > 0 ? Math.round((deliveredCount / totalCount) * 100) : 0;
 
   return (
     <Navigation>
-      <main className="max-w-3xl w-full mx-auto p-3 md:p-6 space-y-4">
+      <div className="min-h-screen bg-slate-100 text-slate-800 antialiased pb-16 lg:pb-6">
+        
+        {/* TOP COMPACT HEADER BAR */}
+        <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+          <div className="max-w-7xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
+            
+            {/* Title & Route Info */}
+            <div className="flex items-center space-x-2 min-w-0">
+              {/* Mobile Drawer Toggle */}
+              <button
+                type="button"
+                onClick={() => setShowCustomerDrawer(true)}
+                className="lg:hidden p-2 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center space-x-1 shrink-0 font-bold text-xs"
+              >
+                <Menu className="w-4 h-4" />
+                <span className="hidden sm:inline">Customers</span>
+              </button>
 
-        {/* Header Information Card */}
-        <div className="bg-nandini-blue text-white p-4 rounded-xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-blue-200">
-                Today's Morning Delivery
-              </span>
-              <h2 className="text-xl md:text-2xl font-black">{assignedRoute?.name || 'Assigned Route'}</h2>
-              <div className="text-xs text-blue-100 mt-0.5">
-                Date: <b>{dateStr}</b> • Delivery Boy: <b>{currentUser?.name}</b>
+              <div className="truncate">
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-base md:text-lg font-bold text-nandini-blue leading-tight truncate">
+                    {assignedRoute?.name || 'Assigned Route'}
+                  </h1>
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium truncate">
+                  Date: <b>{dateStr}</b> • Delivery Boy: <b>{currentUser?.name}</b>
+                </div>
               </div>
             </div>
-            <div className="text-right bg-blue-900/50 p-2 rounded-lg border border-blue-400/30">
-              <div className="text-lg font-black text-white">
-                {deliveries.filter((d) => d.status === 'DELIVERED').length} / {customers.length}
+
+            {/* Progress Badge */}
+            <div className="flex items-center space-x-3 shrink-0">
+              <div className="text-right">
+                <div className="text-sm md:text-base font-black text-slate-900 leading-none">
+                  {deliveredCount} / {totalCount}
+                </div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                  Completed ({progressPercent}%)
+                </div>
               </div>
-              <div className="text-[10px] text-blue-200 uppercase font-semibold">Done</div>
             </div>
+          </div>
+
+          {/* Thin Progress Bar */}
+          <div className="w-full bg-slate-200 h-1 overflow-hidden">
+            <div
+              className="bg-emerald-500 h-full transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
 
-        {/* VIEW 1: CUSTOMER LIST FOR TODAY */}
-        {!selectedCustomer ? (
-          <div className="space-y-3">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-              <input
-                type="text"
-                placeholder="Search house, name (e.g. A-103, Ravi)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-3 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-white shadow-2xs font-medium"
-              />
-            </div>
+        {/* MAIN CONTAINER: TWO-COLUMN RESPONSIVE LAYOUT */}
+        <div className="max-w-7xl mx-auto p-3 sm:p-4 md:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-start">
+            
+            {/* =================================================== */}
+            {/* DESKTOP LEFT COLUMN: CUSTOMER SIDEBAR (Hidden on Mobile) */}
+            {/* =================================================== */}
+            <div className="hidden lg:block lg:col-span-4 bg-white rounded-xl border border-slate-200 p-4 space-y-3 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h2 className="font-extrabold text-sm uppercase tracking-wider text-slate-700 flex items-center space-x-1.5">
+                  <span>Today's Customers</span>
+                  <span className="text-xs bg-blue-50 text-nandini-blue px-2 py-0.5 rounded-full font-mono">
+                    {filteredCustomers.length}
+                  </span>
+                </h2>
+              </div>
 
-            {/* Customer List Cards */}
-            <div className="space-y-2">
-              {filteredCustomers.length === 0 ? (
-                <div className="bg-white p-8 rounded-xl text-center text-slate-500 text-sm border border-slate-200">
-                  No assigned customers found for this route.
-                </div>
-              ) : (
-                filteredCustomers.map((cust) => {
+              {/* Sidebar Search Input */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search customer, house..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-slate-50 font-medium"
+                />
+              </div>
+
+              {/* Sidebar Customer Item List */}
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                {filteredCustomers.map((cust) => {
                   const del = store.getExistingDelivery(cust.id, dateStr);
                   const isDone = !!del;
+                  const isActive = activeCustomer?.id === cust.id;
 
                   return (
                     <div
                       key={cust.id}
-                      onClick={() => handleSelectCustomer(cust)}
-                      className={`p-4 rounded-xl border transition cursor-pointer flex items-center justify-between shadow-2xs ${
-                        isDone
-                          ? 'bg-emerald-50/60 border-emerald-200'
-                          : 'bg-white border-slate-200 hover:border-nandini-blue'
+                      onClick={() => setSelectedCustomerId(cust.id)}
+                      className={`p-3 rounded-lg border transition cursor-pointer flex items-center justify-between text-xs ${
+                        isActive
+                          ? 'bg-blue-50/90 border-nandini-blue shadow-2xs font-semibold'
+                          : isDone
+                          ? 'bg-emerald-50/50 border-emerald-200 text-slate-700 hover:border-emerald-300'
+                          : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
                       }`}
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-extrabold text-slate-900 text-base md:text-lg">{cust.name}</span>
-                          <span className="font-mono font-bold text-xs bg-slate-100 text-nandini-blue px-2 py-0.5 rounded">
+                      <div className="truncate pr-2">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-bold text-slate-900 truncate">{cust.name}</span>
+                          <span className="font-mono text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold shrink-0">
                             {cust.house_number}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-500">{cust.location}</div>
-                        {cust.notes && (
-                          <div className="text-[11px] text-amber-700 italic bg-amber-50 px-2 py-0.5 rounded inline-block">
-                            Note: {cust.notes}
-                          </div>
-                        )}
+                        <div className="text-[11px] text-slate-500 truncate">{cust.location}</div>
                       </div>
 
-                      <div className="text-right shrink-0">
+                      {/* Status Icon Indicator */}
+                      <div className="shrink-0 font-bold text-[11px]">
                         {isDone ? (
-                          <div className="flex items-center space-x-1 text-emerald-700 font-bold text-xs bg-emerald-100 px-2.5 py-1.5 rounded-lg">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>Done ({del.total_milk_litres}L)</span>
-                          </div>
+                          <span className="text-emerald-700 flex items-center space-x-1 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            <Check className="w-3 h-3" />
+                            <span>Done</span>
+                          </span>
+                        ) : isActive ? (
+                          <span className="text-nandini-blue font-bold">→ Active</span>
                         ) : (
-                          <button className="bg-nandini-blue text-white px-3 py-1.5 rounded-lg font-semibold text-xs shadow-2xs">
-                            + Record
-                          </button>
+                          <span className="text-slate-400 font-mono">○ Pending</span>
                         )}
                       </div>
                     </div>
                   );
-                })
+                })}
+              </div>
+            </div>
+
+            {/* =================================================== */}
+            {/* RIGHT COLUMN: COMPACT DELIVERY CARD & ACTIONS (Desktop + Mobile) */}
+            {/* =================================================== */}
+            <div className="w-full lg:col-span-8 space-y-3">
+              
+              {/* Toast Confirmation Message */}
+              {toastMessage && (
+                <div className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-between shadow-md animate-fadeIn">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{toastMessage}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-100 font-mono">Auto-advancing ➔</span>
+                </div>
+              )}
+
+              {activeCustomer ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs space-y-4">
+                  
+                  {/* Top Customer Header Card & Stepper Navigation */}
+                  <div className="flex items-start justify-between pb-3 border-b border-slate-100 gap-2">
+                    <div>
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                          {activeCustomer.name}
+                        </h2>
+                        <span className="bg-nandini-blue text-white font-mono font-bold text-xs px-2.5 py-0.5 rounded-md">
+                          {activeCustomer.house_number}
+                        </span>
+                        <span className="text-xs font-mono font-semibold text-slate-400">
+                          ({activeCustomer.customer_code})
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 font-medium flex items-center space-x-2 mt-0.5 flex-wrap">
+                        <span className="flex items-center space-x-1">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span>{activeCustomer.location}</span>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center space-x-1">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          <span>{activeCustomer.phone}</span>
+                        </span>
+                      </div>
+
+                      {/* Customer Note if present */}
+                      {activeCustomer.notes && (
+                        <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg mt-2 font-medium inline-block">
+                          📌 <b>Note:</b> {activeCustomer.notes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Compact Previous / Next Navigation Arrows */}
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <button
+                        type="button"
+                        disabled={currentIndex === 0}
+                        onClick={handlePrevCustomer}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xs transition flex items-center space-x-1"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span className="hidden sm:inline">Prev</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={currentIndex === filteredCustomers.length - 1}
+                        onClick={handleNextCustomer}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-xs transition flex items-center space-x-1"
+                      >
+                        <span className="hidden sm:inline">Next</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Duplicate / Existing Delivery Alert Banner */}
+                  {activeExistingDelivery && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-lg text-xs flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          Today's delivery recorded (<b>{activeExistingDelivery.total_milk_litres}L Milk</b>). Editing updates record.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* REGULAR PRODUCTS ONLY SECTION */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                        Today's Items (Packet Qty)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddProductModal(true)}
+                        className="text-nandini-blue hover:underline font-bold text-xs flex items-center space-x-1 bg-blue-50 px-2 py-1 rounded-md"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Add Product</span>
+                      </button>
+                    </div>
+
+                    {/* Product Quantity Control Rows */}
+                    <div className="space-y-2">
+                      {displayedProducts.map((p) => {
+                        const count = packetCounts[p.id] || 0;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between text-xs hover:border-slate-300 transition"
+                          >
+                            <div>
+                              <div className="font-bold text-slate-900 text-sm">{p.name}</div>
+                              <div className="text-[11px] text-slate-500">
+                                ₹{p.price}/pkt • {p.category === 'MILK' ? `${p.packet_size_ml}ml Milk` : 'Curd'}
+                              </div>
+                            </div>
+
+                            {/* Touch-Friendly Compact Steppers [-] 1 [+] */}
+                            <div className="flex items-center space-x-2 bg-white border border-slate-300 p-1 rounded-lg shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPacketCounts((prev) => ({
+                                    ...prev,
+                                    [p.id]: Math.max(0, count - 1),
+                                  }))
+                                }
+                                className="w-7 h-7 rounded bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-sm flex items-center justify-center transition touch-manipulation"
+                              >
+                                -
+                              </button>
+
+                              <span className="w-8 text-center font-mono font-black text-sm text-slate-900">
+                                {count}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPacketCounts((prev) => ({
+                                    ...prev,
+                                    [p.id]: count + 1,
+                                  }))
+                                }
+                                className="w-7 h-7 rounded bg-nandini-blue hover:bg-nandini-dark active:bg-blue-900 text-white font-bold text-sm flex items-center justify-center transition touch-manipulation"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* REMARKS TOGGLE & INPUT */}
+                  <div>
+                    {!showRemarksInput ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowRemarksInput(true)}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center space-x-1"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+                        <span>+ Add Remark / Note</span>
+                      </button>
+                    ) : (
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase">
+                          Delivery Remark
+                        </label>
+                        <input
+                          type="text"
+                          value={remarks}
+                          onChange={(e) => setRemarks(e.target.value)}
+                          placeholder="e.g. Customer requested only 500ml today"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-slate-50 font-medium"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* COMPACT LIGHT-THEMED BILLING SUMMARY */}
+                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-600 font-medium">
+                      <div>
+                        Milk: <b className="text-slate-900 font-bold">{liveTotals.totalMilkLitres} L</b>
+                      </div>
+                      <div>
+                        Curd: <b className="text-slate-900 font-bold">{liveTotals.totalCurdPackets} Pkts</b>
+                      </div>
+                      <div>
+                        Products: <b className="text-slate-900 font-bold">₹{liveTotals.productTotal.toFixed(2)}</b>
+                      </div>
+                      <div>
+                        Delivery: <b className="text-slate-900 font-bold">₹{liveTotals.deliveryCharge.toFixed(2)}</b>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-sm md:text-base font-black text-slate-900">
+                      <span>DAILY GRAND TOTAL:</span>
+                      <span className="text-nandini-blue">₹{liveTotals.grandTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* MAIN ACTION BUTTONS: [ ✓ DELIVERED ] + [ More ▼ ] */}
+                  <div className="pt-2 relative">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => handleSaveDelivery('DELIVERED')}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3.5 px-4 rounded-xl font-black text-sm md:text-base shadow-md transition flex items-center justify-center space-x-2 touch-manipulation"
+                      >
+                        <Check className="w-5 h-5" />
+                        <span>
+                          {saving
+                            ? 'Saving...'
+                            : activeExistingDelivery
+                            ? '✓ UPDATE DELIVERY'
+                            : '✓ DELIVERED'}
+                        </span>
+                      </button>
+
+                      {/* Dropdown toggle for alternative statuses */}
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreStatus((prev) => !prev)}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-3.5 rounded-xl font-bold text-xs border border-slate-300 flex items-center space-x-1 shrink-0"
+                      >
+                        <span>More</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Alternative Delivery Status Popup Dropdown */}
+                    {showMoreStatus && (
+                      <div className="absolute right-0 bottom-14 w-60 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                          Alternative Status:
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMoreStatus(false);
+                            handleSaveDelivery('SKIPPED_BY_CUSTOMER');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50 rounded-lg transition"
+                        >
+                          Skipped by Customer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMoreStatus(false);
+                            handleSaveDelivery('CUSTOMER_UNAVAILABLE');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                        >
+                          Customer Unavailable
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMoreStatus(false);
+                            handleSaveDelivery('DELIVERY_ISSUE');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                        >
+                          Delivery Issue / Incident
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500 text-sm">
+                  No customer selected or assigned.
+                </div>
               )}
             </div>
           </div>
-        ) : (
-          /* VIEW 2: DAILY PACKET ENTRY FORM (MOBILE-FIRST) */
-          <form onSubmit={handleSaveDelivery} className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 shadow-sm space-y-4">
-            {/* Top Navigation Back Button */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+        </div>
+
+        {/* =================================================== */}
+        {/* MOBILE OVERLAY DRAWER: CUSTOMER LIST (Hidden on Desktop) */}
+        {/* =================================================== */}
+        {showCustomerDrawer && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex justify-start lg:hidden">
+            <div className="w-4/5 max-w-xs bg-white h-full p-4 space-y-3 flex flex-col shadow-2xl animate-slideRight">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h3 className="font-black text-sm uppercase tracking-wider text-slate-900">
+                  Select Customer ({filteredCustomers.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerDrawer(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Mobile Drawer Search Input */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search name, house..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-nandini-blue bg-slate-50"
+                />
+              </div>
+
+              {/* Mobile Customer List */}
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                {filteredCustomers.map((cust) => {
+                  const del = store.getExistingDelivery(cust.id, dateStr);
+                  const isDone = !!del;
+                  const isActive = activeCustomer?.id === cust.id;
+
+                  return (
+                    <div
+                      key={cust.id}
+                      onClick={() => {
+                        setSelectedCustomerId(cust.id);
+                        setShowCustomerDrawer(false);
+                      }}
+                      className={`p-3 rounded-lg border transition cursor-pointer flex items-center justify-between text-xs ${
+                        isActive
+                          ? 'bg-blue-50 border-nandini-blue font-bold text-nandini-blue'
+                          : isDone
+                          ? 'bg-emerald-50 border-emerald-200 text-slate-700'
+                          : 'bg-white border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      <div className="truncate pr-2">
+                        <div className="font-bold text-slate-900 truncate">
+                          {cust.name} <span className="font-mono text-xs text-slate-500">({cust.house_number})</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">{cust.location}</div>
+                      </div>
+                      {isDone && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================== */}
+        {/* MODAL: + ADD EXTRA PRODUCT */}
+        {/* =================================================== */}
+        {showAddProductModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 max-w-sm w-full space-y-3 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-1.5">
+                  <Plus className="w-4 h-4 text-nandini-blue" />
+                  <span>Add Extra Product Today</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddProductModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                {availableExtraProducts.length === 0 ? (
+                  <div className="text-center py-4 text-slate-500 text-xs font-medium">
+                    All active products are already added to today's list.
+                  </div>
+                ) : (
+                  availableExtraProducts.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => handleAddExtraProduct(p.id)}
+                      className="p-2.5 rounded-lg border border-slate-200 hover:border-nandini-blue hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs transition"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-900">{p.name}</div>
+                        <div className="text-[11px] text-slate-500">₹{p.price} / packet</div>
+                      </div>
+                      <span className="text-nandini-blue font-bold text-xs flex items-center space-x-1">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add</span>
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={() => setSelectedCustomerId(null)}
-                className="flex items-center space-x-1 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 px-2.5 py-1.5 rounded-lg"
+                onClick={() => setShowAddProductModal(false)}
+                className="w-full bg-slate-100 text-slate-700 py-2 rounded-lg text-xs font-bold hover:bg-slate-200"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back to List</span>
+                Cancel
               </button>
-
-              <div className="text-xs font-bold text-nandini-blue font-mono">
-                {selectedCustomer.customer_code}
-              </div>
             </div>
-
-            {/* Customer Header */}
-            <div>
-              <h3 className="text-xl font-extrabold text-slate-900">{selectedCustomer.name}</h3>
-              <div className="text-xs text-slate-500 font-medium">
-                House <b>{selectedCustomer.house_number}</b> • {selectedCustomer.location}
-              </div>
-              {selectedCustomer.notes && (
-                <div className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2">
-                  📌 <b>Customer Note:</b> {selectedCustomer.notes}
-                </div>
-              )}
-            </div>
-
-            {/* Duplicate Delivery Warning Banner */}
-            {existingDelivery && (
-              <div className="bg-amber-50 border border-amber-300 text-amber-900 p-3 rounded-lg text-xs flex items-start space-x-2">
-                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold">Today's delivery already recorded!</div>
-                  <div>Editing will update the existing delivery record safely.</div>
-                </div>
-              </div>
-            )}
-
-            {/* Success Message Banner */}
-            {successMessage && (
-              <div className="bg-emerald-100 border border-emerald-300 text-emerald-800 p-3 rounded-lg text-sm font-bold flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-emerald-600" />
-                <span>{successMessage}</span>
-              </div>
-            )}
-
-            {/* Delivery Status Selector */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                Delivery Status
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { id: 'DELIVERED', label: 'DELIVERED' },
-                    { id: 'SKIPPED_BY_CUSTOMER', label: 'SKIPPED BY CUST.' },
-                    { id: 'CUSTOMER_UNAVAILABLE', label: 'UNAVAILABLE' },
-                    { id: 'DELIVERY_ISSUE', label: 'DELIVERY ISSUE' },
-                  ] as const
-                ).map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => setDeliveryStatus(st.id)}
-                    className={`py-2 px-2 text-xs font-bold rounded-lg border transition ${
-                      deliveryStatus === st.id
-                        ? st.id === 'DELIVERED'
-                          ? 'bg-emerald-600 text-white border-emerald-600'
-                          : 'bg-amber-600 text-white border-amber-600'
-                        : 'bg-slate-50 text-slate-700 border-slate-300'
-                    }`}
-                  >
-                    {st.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Packet Steppers list */}
-            {deliveryStatus === 'DELIVERED' && (
-              <div className="space-y-2.5 pt-2">
-                <label className="block text-xs font-semibold text-slate-700 uppercase">
-                  Select Delivered Packets
-                </label>
-                {products.map((p) => (
-                  <PacketCounter
-                    key={p.id}
-                    label={p.name}
-                    subLabel={p.category === 'MILK' ? `${p.packet_size_ml}ml Milk` : 'Curd 1L'}
-                    price={p.price}
-                    count={packetCounts[p.id] || 0}
-                    onChange={(newVal) =>
-                      setPacketCounts({
-                        ...packetCounts,
-                        [p.id]: newVal,
-                      })
-                    }
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Live Automated Calculation Display Card */}
-            {deliveryStatus === 'DELIVERED' && (
-              <div className="bg-slate-900 text-white p-4 rounded-xl space-y-2 text-xs md:text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-300">Total Milk Litres:</span>
-                  <span className="font-bold text-blue-300 text-base">{liveTotals.totalMilkLitres} L</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-300">Total Curd Packets:</span>
-                  <span className="font-bold text-amber-300">{liveTotals.totalCurdPackets} Pkts</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-300">Product Total:</span>
-                  <span className="font-semibold">₹{liveTotals.productTotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-300">Delivery Charge (Milk Vol):</span>
-                  <span className="font-semibold text-cyan-300">₹{liveTotals.deliveryCharge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-700 pt-2 text-base font-black text-white">
-                  <span>DAILY GRAND TOTAL:</span>
-                  <span className="text-emerald-400">₹{liveTotals.grandTotal.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Remarks Field */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                Delivery Remarks / Notes
-              </label>
-              <input
-                type="text"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="e.g. Customer requested only 500ml today"
-                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
-              />
-            </div>
-
-            {/* Big One-Handed Save Delivery Button */}
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full bg-nandini-blue hover:bg-nandini-dark active:bg-blue-900 text-white py-4 rounded-xl font-extrabold text-base shadow-md transition flex items-center justify-center space-x-2 touch-manipulation select-none"
-            >
-              <Check className="w-6 h-6" />
-              <span>{saving ? 'Saving Delivery...' : existingDelivery ? 'UPDATE TODAY\'S DELIVERY' : 'SAVE DELIVERY RECORD'}</span>
-            </button>
-          </form>
+          </div>
         )}
-      </main>
+
+      </div>
     </Navigation>
   );
 }
-
