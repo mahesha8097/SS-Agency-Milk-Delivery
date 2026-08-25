@@ -312,82 +312,94 @@ export default function AdminInvoicesPage() {
                   </div>
                 </div>
 
-                {/* Product Breakdown Table */}
-                <div className="border-b border-slate-900 overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-[11px]">
-                    <thead>
-                      <tr className="border-b border-slate-900 bg-slate-100 font-bold uppercase text-[10px] text-slate-800">
-                        <th className="p-1.5 border-r border-slate-900 text-center w-8">#</th>
-                        <th className="p-1.5 border-r border-slate-900">Item name</th>
-                        <th className="p-1.5 border-r border-slate-900 text-center w-16">Quantity</th>
-                        <th className="p-1.5 border-r border-slate-900 text-center w-14">Unit</th>
-                        <th className="p-1.5 border-r border-slate-900 text-right w-16">MRP(Rs)</th>
-                        <th className="p-1.5 border-r border-slate-900 text-right w-16">Price(Rs)</th>
-                        <th className="p-1.5 border-r border-slate-900 text-right w-20">GST(Rs)</th>
-                        <th className="p-1.5 text-right w-20">Amount(Rs)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-300">
-                      {store
-                        .getDeliveries(undefined, viewInvoice.customer_id)
-                        .filter((d) => d.delivery_date.startsWith(viewInvoice.month_year))
-                        .flatMap((d) => store.getDeliveryItems(d.id))
-                        .reduce((acc, item) => {
-                          const existing = acc.find((i) => i.product_name === item.product_name);
-                          if (existing) {
-                            existing.packets_count += item.packets_count;
-                            existing.total_amount += item.total_amount;
-                          } else {
-                            acc.push({ ...item });
-                          }
-                          return acc;
-                        }, [] as any[])
-                        .map((item, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="p-1.5 border-r border-slate-900 text-center font-bold">{idx + 1}</td>
-                            <td className="p-1.5 border-r border-slate-900 font-semibold">{item.product_name}</td>
-                            <td className="p-1.5 border-r border-slate-900 text-center font-bold">{item.packets_count}</td>
-                            <td className="p-1.5 border-r border-slate-900 text-center text-slate-600">Pkt/Ltr</td>
-                            <td className="p-1.5 border-r border-slate-900 text-right">Rs {item.price_per_unit.toFixed(2)}</td>
-                            <td className="p-1.5 border-r border-slate-900 text-right">Rs {item.price_per_unit.toFixed(2)}</td>
-                            <td className="p-1.5 border-r border-slate-900 text-right text-slate-600">Rs 0.00 (0%)</td>
-                            <td className="p-1.5 text-right font-bold">Rs {item.total_amount.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      {/* Total Row */}
-                      <tr className="border-t border-slate-900 bg-slate-100 font-bold">
-                        <td colSpan={2} className="p-1.5 border-r border-slate-900 text-right uppercase">Total</td>
-                        <td className="p-1.5 border-r border-slate-900 text-center font-black">
-                          {store
-                            .getDeliveries(undefined, viewInvoice.customer_id)
-                            .filter((d) => d.delivery_date.startsWith(viewInvoice.month_year))
-                            .flatMap((d) => store.getDeliveryItems(d.id))
-                            .reduce((sum, i) => sum + i.packets_count, 0)}
-                        </td>
-                        <td colSpan={4} className="p-1.5 border-r border-slate-900 text-right">Rs 0.00</td>
-                        <td className="p-1.5 text-right font-black text-slate-900">Rs {viewInvoice.grand_total.toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                {/* Product Breakdown Table & Summary Section */}
+                {(() => {
+                  const modalDeliveries = store
+                    .getDeliveries(undefined, viewInvoice.customer_id)
+                    .filter((d) => d.delivery_date.startsWith(viewInvoice.month_year));
 
-                {/* Summary & Financial Grid */}
-                <div className="border-b border-slate-900 text-[11px] leading-snug">
-                  <div className="grid grid-cols-12 border-b border-slate-300 p-1.5 bg-slate-50">
-                    <div className="col-span-3 font-semibold">Sub Total: <b>Rs {viewInvoice.total_product_amount.toFixed(2)}</b></div>
-                    <div className="col-span-3 font-semibold">Round Off: <b>- Rs 0.00</b></div>
-                    <div className="col-span-6 text-right font-black text-slate-900">
-                      Total: Rs {viewInvoice.grand_total.toFixed(2)} ({numberToWords(viewInvoice.grand_total)})
-                    </div>
-                  </div>
+                  const modalItems = modalDeliveries
+                    .flatMap((d) => store.getDeliveryItems(d.id))
+                    .reduce((acc, item) => {
+                      const existing = acc.find((i) => i.product_name === item.product_name);
+                      if (existing) {
+                        existing.packets_count += item.packets_count;
+                        existing.total_amount += item.total_amount;
+                      } else {
+                        acc.push({ ...item });
+                      }
+                      return acc;
+                    }, [] as any[]);
 
-                  <div className="grid grid-cols-12 p-1.5 font-medium">
-                    <div className="col-span-3">Received: <b className="text-emerald-700">Rs {viewInvoice.advance_paid.toFixed(2)}</b></div>
-                    <div className="col-span-3">Balance: <b className="text-slate-900">Rs {viewInvoice.amount_payable.toFixed(2)}</b></div>
-                    <div className="col-span-3">Previous Balance: <b>Rs {viewInvoice.previous_balance_credit.toFixed(2)}</b></div>
-                    <div className="col-span-3 text-right">Current Balance: <b className="text-nandini-blue">Rs {viewInvoice.amount_payable.toFixed(2)}</b></div>
-                  </div>
-                </div>
+                  const modalTotalPackets = modalItems.reduce((sum, i) => sum + i.packets_count, 0);
+                  const modalProductTotal = Math.round(modalItems.reduce((sum, i) => sum + i.total_amount, 0) * 100) / 100;
+                  const modalDeliveryCharges = Math.round(modalDeliveries.reduce((sum, d) => sum + d.delivery_charge, 0) * 100) / 100;
+                  const modalGrandTotal = Math.round((modalProductTotal + modalDeliveryCharges) * 100) / 100;
+                  const modalAdvancePaid = viewInvoice.advance_paid;
+                  const modalAmountPayable = Math.round((modalGrandTotal - modalAdvancePaid - viewInvoice.previous_balance_credit) * 100) / 100;
+
+                  return (
+                    <>
+                      <div className="border-b border-slate-900 overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-[11px]">
+                          <thead>
+                            <tr className="border-b border-slate-900 bg-slate-100 font-bold uppercase text-[10px] text-slate-800">
+                              <th className="p-1.5 border-r border-slate-900 text-center w-8">#</th>
+                              <th className="p-1.5 border-r border-slate-900">Item name</th>
+                              <th className="p-1.5 border-r border-slate-900 text-center w-16">Quantity</th>
+                              <th className="p-1.5 border-r border-slate-900 text-center w-14">Unit</th>
+                              <th className="p-1.5 border-r border-slate-900 text-right w-16">MRP(Rs)</th>
+                              <th className="p-1.5 border-r border-slate-900 text-right w-16">Price(Rs)</th>
+                              <th className="p-1.5 border-r border-slate-900 text-right w-20">GST(Rs)</th>
+                              <th className="p-1.5 text-right w-20">Amount(Rs)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-300">
+                            {modalItems.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="p-1.5 border-r border-slate-900 text-center font-bold">{idx + 1}</td>
+                                <td className="p-1.5 border-r border-slate-900 font-semibold">{item.product_name}</td>
+                                <td className="p-1.5 border-r border-slate-900 text-center font-bold">{item.packets_count}</td>
+                                <td className="p-1.5 border-r border-slate-900 text-center text-slate-600">Pkt/Ltr</td>
+                                <td className="p-1.5 border-r border-slate-900 text-right">Rs {item.price_per_unit.toFixed(2)}</td>
+                                <td className="p-1.5 border-r border-slate-900 text-right">Rs {item.price_per_unit.toFixed(2)}</td>
+                                <td className="p-1.5 border-r border-slate-900 text-right text-slate-600">Rs 0.00 (0%)</td>
+                                <td className="p-1.5 text-right font-bold">Rs {item.total_amount.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                            {/* Total Row */}
+                            <tr className="border-t border-slate-900 bg-slate-100 font-bold">
+                              <td colSpan={2} className="p-1.5 border-r border-slate-900 text-right uppercase">Total</td>
+                              <td className="p-1.5 border-r border-slate-900 text-center font-black">
+                                {modalTotalPackets}
+                              </td>
+                              <td colSpan={4} className="p-1.5 border-r border-slate-900 text-right">Rs {modalDeliveryCharges.toFixed(2)}</td>
+                              <td className="p-1.5 text-right font-black text-slate-900">Rs {modalGrandTotal.toFixed(2)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Summary & Financial Grid */}
+                      <div className="border-b border-slate-900 text-[11px] leading-snug">
+                        <div className="grid grid-cols-12 border-b border-slate-300 p-1.5 bg-slate-50">
+                          <div className="col-span-3 font-semibold">Sub Total: <b>Rs {modalProductTotal.toFixed(2)}</b></div>
+                          <div className="col-span-3 font-semibold">Round Off: <b>- Rs 0.00</b></div>
+                          <div className="col-span-6 text-right font-black text-slate-900">
+                            Total: Rs {modalGrandTotal.toFixed(2)} ({numberToWords(modalGrandTotal)})
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-12 p-1.5 font-medium">
+                          <div className="col-span-3">Received: <b className="text-emerald-700">Rs {modalAdvancePaid.toFixed(2)}</b></div>
+                          <div className="col-span-3">Balance: <b className="text-slate-900">Rs {modalAmountPayable.toFixed(2)}</b></div>
+                          <div className="col-span-3">Previous Balance: <b>Rs {viewInvoice.previous_balance_credit.toFixed(2)}</b></div>
+                          <div className="col-span-3 text-right">Current Balance: <b className="text-nandini-blue">Rs {modalAmountPayable.toFixed(2)}</b></div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* QR Code & Signature Section */}
                 <div className="grid grid-cols-12 border-b border-slate-900 p-2.5 items-center">

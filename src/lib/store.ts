@@ -1175,6 +1175,17 @@ class Store {
         (d) => d.customer_id === customer.id && d.delivery_date.startsWith(monthYear)
       );
 
+      // Re-sum product total directly from actual delivery items to guarantee 100% precision
+      const monthDeliveriesSanitized = monthDeliveries.map((d) => {
+        const items = this.getDeliveryItems(d.id);
+        const itemSum = items.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+        return {
+          ...d,
+          product_total: items.length > 0 ? Math.round(itemSum * 100) / 100 : d.product_total,
+          grand_total: items.length > 0 ? Math.round((itemSum + d.delivery_charge) * 100) / 100 : d.grand_total,
+        };
+      });
+
       const monthPayments = this.data.payments.filter(
         (p) => p.customer_id === customer.id && p.payment_date.startsWith(monthYear)
       );
@@ -1184,7 +1195,7 @@ class Store {
       );
       const prevUnpaidBalance = previousInvoices.reduce((sum, inv) => sum + inv.amount_payable, 0);
 
-      const summary = calculateMonthlyInvoiceSummary(monthDeliveries, monthPayments, prevUnpaidBalance);
+      const summary = calculateMonthlyInvoiceSummary(monthDeliveriesSanitized, monthPayments, prevUnpaidBalance);
 
       const invoiceNum = `INV-${monthYear.replace('-', '')}-${customer.customer_code}`;
       const existingIdx = this.data.invoices.findIndex(
