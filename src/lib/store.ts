@@ -549,7 +549,19 @@ class Store {
 
   // --- Customers ---
   public getCustomers(): Customer[] {
-    return this.data.customers;
+    return this.data.customers.map((c) => {
+      const isBulk = c.customer_category === 'BULK_ORDER' || c.is_bulk_order || c.payment_type === 'WEEKLY';
+      if (isBulk) {
+        return {
+          ...c,
+          customer_category: 'BULK_ORDER',
+          is_bulk_order: true,
+          bulk_billing_cycle: c.bulk_billing_cycle || (c.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY'),
+          establishment_type: c.establishment_type || 'Hotel',
+        };
+      }
+      return c;
+    });
   }
 
   public deleteCustomer(customerId: string): boolean {
@@ -625,6 +637,7 @@ class Store {
     this.notify();
 
     if (isSupabaseConfigured()) {
+      const isBulk = updated.customer_category === 'BULK_ORDER' || updated.is_bulk_order || updated.payment_type === 'WEEKLY';
       const dbCustomerPayload = {
         id: updated.id,
         customer_code: updated.customer_code,
@@ -635,6 +648,10 @@ class Store {
         route_id: updated.route_id || null,
         delivery_boy_id: updated.delivery_boy_id || null,
         payment_type: updated.payment_type || 'MONTHLY_ADVANCE',
+        customer_category: isBulk ? 'BULK_ORDER' : (updated.customer_category || 'RESIDENTIAL'),
+        establishment_type: updated.establishment_type || (isBulk ? 'Hotel' : null),
+        is_bulk_order: !!isBulk,
+        bulk_billing_cycle: updated.bulk_billing_cycle || (updated.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY'),
         status: updated.status || 'ACTIVE',
         notes: updated.notes || null,
         created_at: updated.created_at,

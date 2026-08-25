@@ -28,6 +28,8 @@ export default function CustomerManagementPage() {
     route_id: '',
     delivery_boy_id: '',
     payment_type: 'MONTHLY_ADVANCE' as PaymentType,
+    customer_category: 'RESIDENTIAL' as 'RESIDENTIAL' | 'BULK_ORDER',
+    establishment_type: 'Hotel',
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     notes: '',
   });
@@ -70,6 +72,8 @@ export default function CustomerManagementPage() {
       route_id: routes[0]?.id || '',
       delivery_boy_id: deliveryBoys[0]?.id || '',
       payment_type: 'MONTHLY_ADVANCE',
+      customer_category: 'RESIDENTIAL',
+      establishment_type: 'Hotel',
       status: 'ACTIVE',
       notes: '',
     });
@@ -92,6 +96,8 @@ export default function CustomerManagementPage() {
       route_id: cust.route_id,
       delivery_boy_id: cust.delivery_boy_id,
       payment_type: cust.payment_type,
+      customer_category: cust.customer_category || (cust.payment_type === 'WEEKLY' ? 'BULK_ORDER' : 'RESIDENTIAL'),
+      establishment_type: cust.establishment_type || 'Hotel',
       status: cust.status,
       notes: cust.notes || '',
     });
@@ -113,6 +119,10 @@ export default function CustomerManagementPage() {
       return;
     }
 
+    const isBulk =
+      formData.customer_category === 'BULK_ORDER' ||
+      formData.payment_type === 'WEEKLY';
+
     const reqs = Object.entries(productDefaults).map(([productId, defaultPackets]) => ({
       productId,
       defaultPackets,
@@ -122,6 +132,10 @@ export default function CustomerManagementPage() {
       {
         id: editingCustomer?.id,
         ...formData,
+        customer_category: isBulk ? 'BULK_ORDER' : 'RESIDENTIAL',
+        is_bulk_order: isBulk,
+        establishment_type: isBulk ? formData.establishment_type || 'Hotel' : undefined,
+        bulk_billing_cycle: isBulk ? (formData.payment_type === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY') : undefined,
       },
       reqs
     );
@@ -414,6 +428,67 @@ export default function CustomerManagementPage() {
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Account Category *
+                    </label>
+                    <select
+                      value={formData.customer_category}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          customer_category: e.target.value as any,
+                          payment_type: e.target.value === 'BULK_ORDER' ? 'WEEKLY' : formData.payment_type,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-white font-medium"
+                    >
+                      <option value="RESIDENTIAL">Residential (Home Delivery)</option>
+                      <option value="BULK_ORDER">Hotel / Restaurant / Bulk Account (₹0 Delivery Charge)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Payment Type *
+                    </label>
+                    <select
+                      value={formData.payment_type}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          payment_type: e.target.value as PaymentType,
+                          customer_category: e.target.value === 'WEEKLY' ? 'BULK_ORDER' : formData.customer_category,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-white font-medium"
+                    >
+                      <option value="MONTHLY_ADVANCE">Monthly Advance</option>
+                      <option value="DAILY_CASH">Daily Cash</option>
+                      <option value="WEEKLY">Weekly Payment (Bulk Billing)</option>
+                    </select>
+                  </div>
+
+                  {(formData.customer_category === 'BULK_ORDER' || formData.payment_type === 'WEEKLY') && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                        Establishment Type *
+                      </label>
+                      <select
+                        value={formData.establishment_type}
+                        onChange={(e) => setFormData({ ...formData, establishment_type: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-white font-medium"
+                      >
+                        <option value="Hotel">Hotel</option>
+                        <option value="Restaurant">Restaurant</option>
+                        <option value="School">School / College</option>
+                        <option value="Caterer">Caterer</option>
+                        <option value="Canteen">Canteen</option>
+                        <option value="Office">Office / Commercial</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Default Regular Product Requirements */}
