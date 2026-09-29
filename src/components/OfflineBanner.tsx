@@ -33,7 +33,8 @@ export default function OfflineBanner() {
     const handleOnline = async () => {
       setIsOnline(true);
       setSyncing(true);
-      const synced = await store.syncPendingOfflineQueue();
+      const res = await store.syncPendingOfflineQueue();
+      const synced = res?.synced || 0;
       setSyncing(false);
       if (synced > 0) {
         setSyncedMessage(`Successfully synced ${synced} offline records!`);
@@ -64,7 +65,8 @@ export default function OfflineBanner() {
   const handleManualSync = async () => {
     if (!isOnline) return;
     setSyncing(true);
-    const count = await store.syncPendingOfflineQueue();
+    const res = await store.syncPendingOfflineQueue();
+    const count = res?.synced || 0;
     setSyncing(false);
     if (count > 0) {
       setSyncedMessage(`Synced ${count} offline deliveries!`);

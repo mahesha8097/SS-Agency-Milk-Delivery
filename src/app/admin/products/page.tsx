@@ -1,133 +1,176 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Navigation from '@/components/Navigation';
 import { store } from '@/lib/store';
-import { Product, ProductCategory } from '@/lib/types';
+import { Product } from '@/lib/types';
 import {
   Package,
   Edit2,
   Trash2,
-  X,
-  ShieldAlert,
   Plus,
-  Milk,
-  Droplets,
-  Box,
-  GlassWater,
-  Coffee,
-  Heart,
-  Sparkles,
+  X,
+  CheckCircle2,
+  AlertCircle,
   ShoppingBag,
-  Upload,
+  Milk,
+  Check,
+  Search,
   Image as ImageIcon,
+  Upload,
+  Eye,
+  EyeOff,
+  Truck,
+  Save,
 } from 'lucide-react';
-
-const AVAILABLE_ICONS = [
-  { id: 'Milk', label: 'Milk', Icon: Milk },
-  { id: 'Droplets', label: 'Curd / Liquid', Icon: Droplets },
-  { id: 'Package', label: 'Package', Icon: Package },
-  { id: 'Box', label: 'Box', Icon: Box },
-  { id: 'GlassWater', label: 'Glass', Icon: GlassWater },
-  { id: 'Coffee', label: 'Beverage', Icon: Coffee },
-  { id: 'Heart', label: 'Health', Icon: Heart },
-  { id: 'Sparkles', label: 'Premium', Icon: Sparkles },
-  { id: 'ShoppingBag', label: 'Bag', Icon: ShoppingBag },
-];
-
-function ProductIcon({ iconName, className = "w-5 h-5" }: { iconName?: string; className?: string }) {
-  const found = AVAILABLE_ICONS.find((i) => i.id === iconName);
-  const IconComponent = found ? found.Icon : Package;
-  return <IconComponent className={className} />;
-}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  // Search & Filters
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('ALL');
+  const [productStatusFilter, setProductStatusFilter] = useState('ALL');
 
   // Form fields
   const [formName, setFormName] = useState('');
-  const [formCategory, setFormCategory] = useState<ProductCategory>('MILK');
-  const [formSize, setFormSize] = useState<number>(1000);
+  const [formCategory, setFormCategory] = useState('MILK');
+  const [formUnit, setFormUnit] = useState('1L');
+  const [formPacketSizeMl, setFormPacketSizeMl] = useState<number>(1000);
   const [formPrice, setFormPrice] = useState<string>('');
-  const [formIcon, setFormIcon] = useState<string>('Milk');
+  const [formDeliveryChargeApplicable, setFormDeliveryChargeApplicable] = useState(true);
+  const [formActive, setFormActive] = useState(true);
   const [formImageUrl, setFormImageUrl] = useState<string>('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const reload = () => setProducts(store.getProducts());
 
   useEffect(() => {
     reload();
     const unsub = store.subscribe(reload);
-    return () => { unsub(); };
+    return () => {
+      unsub();
+    };
   }, []);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchSearch =
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        p.product_code.toLowerCase().includes(productSearch.toLowerCase());
+      const matchCategory =
+        productCategoryFilter === 'ALL' || p.category === productCategoryFilter;
+      const matchStatus =
+        productStatusFilter === 'ALL' ||
+        (productStatusFilter === 'ACTIVE' && p.active) ||
+        (productStatusFilter === 'INACTIVE' && !p.active);
+      return matchSearch && matchCategory && matchStatus;
+    });
+  }, [products, productSearch, productCategoryFilter, productStatusFilter]);
 
   const openAddModal = () => {
     setEditingProduct(null);
     setFormName('');
     setFormCategory('MILK');
-    setFormSize(1000);
+    setFormUnit('1L');
+    setFormPacketSizeMl(1000);
     setFormPrice('');
-    setFormIcon('Milk');
+    setFormDeliveryChargeApplicable(true);
+    setFormActive(true);
     setFormImageUrl('');
-    setShowAddModal(true);
+    setFormError(null);
+    setShowModal(true);
   };
 
   const openEditModal = (p: Product) => {
     setEditingProduct(p);
     setFormName(p.name);
-    setFormCategory(p.category);
-    setFormSize(p.packet_size_ml);
+    setFormCategory(p.category || 'MILK');
+    setFormUnit(p.unit || '1L');
+    setFormPacketSizeMl(p.packet_size_ml || 1000);
     setFormPrice(p.price.toString());
-    setFormIcon(p.icon || (p.category === 'MILK' ? 'Milk' : 'Droplets'));
+    setFormDeliveryChargeApplicable(p.delivery_charge_applicable !== false);
+    setFormActive(p.active !== false);
     setFormImageUrl(p.image_url || '');
-    setShowAddModal(true);
+    setFormError(null);
+    setShowModal(true);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('Image file size must be less than 2MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormImageUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setFormError('Image size should be less than 2MB.');
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setFormImageUrl(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) {
-      alert('Please enter a valid product name');
-      return;
-    }
+    setFormError(null);
+
     const priceNum = parseFloat(formPrice);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      alert('Please enter a valid unit price');
+    if (!formName.trim() || isNaN(priceNum) || priceNum <= 0) {
+      setFormError('Please enter a valid product name and positive selling price.');
       return;
     }
 
-    store.saveProduct({
-      id: editingProduct?.id,
-      name: formName.trim(),
-      category: formCategory,
-      packet_size_ml: Number(formSize),
-      price: priceNum,
-      icon: formIcon,
-      image_url: formImageUrl || undefined,
-    });
+    if (editingProduct) {
+      store.updateProduct(editingProduct.id, {
+        name: formName.trim(),
+        category: formCategory,
+        unit: formUnit.trim(),
+        packet_size_ml: formPacketSizeMl,
+        price: priceNum,
+        delivery_charge_applicable: formDeliveryChargeApplicable,
+        active: formActive,
+        image_url: formImageUrl || undefined,
+      });
+      setToastMessage(`Product "${formName.trim()}" updated successfully!`);
+    } else {
+      const code = `P${(products.length + 1).toString().padStart(3, '0')}`;
+      store.addProduct({
+        product_code: code,
+        name: formName.trim(),
+        category: formCategory,
+        unit: formUnit.trim(),
+        packet_size_ml: formPacketSizeMl,
+        price: priceNum,
+        delivery_charge_applicable: formDeliveryChargeApplicable,
+        active: formActive,
+        image_url: formImageUrl || undefined,
+      });
+      setToastMessage(`Product "${formName.trim()}" added to catalog successfully!`);
+    }
 
-    setShowAddModal(false);
-    setEditingProduct(null);
+    setShowModal(false);
+    setTimeout(() => setToastMessage(null), 3000);
+    reload();
+  };
+
+  const handleToggleStatus = (p: Product) => {
+    store.toggleProductStatus(p.id);
+    reload();
   };
 
   const handleDeleteProduct = (p: Product) => {
-    if (confirm(`Are you sure you want to delete product "${p.name}"?\nThis action will also clear default requirements for this product.`)) {
-      store.deleteProduct(p.id);
+    if (confirm(`Are you sure you want to remove or deactivate "${p.name}"?`)) {
+      const res = store.deleteProduct(p.id);
+      if (res.deactivated) {
+        alert(res.message);
+      } else {
+        setToastMessage(res.message);
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+      reload();
     }
   };
 
@@ -136,248 +179,389 @@ export default function AdminProductsPage() {
       <main className="max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
 
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-slate-900">Product Catalog & Pricing</h2>
+            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">Product Catalog</h2>
             <p className="text-xs md:text-sm text-slate-500">
-              Manage Nandini Milk & Curd products, upload product images, select icons, and update prices.
+              Configure Nandini milk, curd, ghee, paneer, and sweets with custom prices, images, and delivery charge rules.
             </p>
           </div>
+
           <button
             onClick={openAddModal}
-            className="inline-flex items-center space-x-2 bg-nandini-blue hover:bg-blue-800 text-white font-semibold px-4 py-2.5 rounded-xl shadow-xs transition text-sm self-start sm:self-auto"
+            className="bg-nandini-blue hover:bg-blue-800 text-white px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center space-x-2 shadow-sm transition self-start md:self-auto"
           >
             <Plus className="w-4 h-4" />
-            <span>Add New Product</span>
+            <span>+ Add Product</span>
           </button>
         </div>
 
-        {/* Informational Alert */}
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl text-xs md:text-sm flex items-start space-x-3">
-          <ShieldAlert className="w-5 h-5 text-nandini-blue shrink-0 mt-0.5" />
-          <div>
-            <div className="font-bold">Historical Price Integrity Protection</div>
-            <div>
-              When you edit a product price here, existing historical delivery records and past monthly bills retain their original price at delivery time.
-            </div>
+        {toastMessage && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-2xl text-xs sm:text-sm font-semibold flex items-center space-x-2 shadow-xs">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Filters Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col md:flex-row items-center gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              placeholder="Search products by name or code..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              className="w-full pl-9 pr-3.5 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-slate-50"
+            />
+          </div>
+
+          <div className="flex items-center space-x-2 w-full md:w-auto">
+            <select
+              value={productCategoryFilter}
+              onChange={(e) => setProductCategoryFilter(e.target.value)}
+              className="flex-1 md:flex-initial px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-nandini-blue"
+            >
+              <option value="ALL">All Categories</option>
+              <option value="MILK">Milk</option>
+              <option value="CURD">Curd</option>
+              <option value="BUTTERMILK">Buttermilk</option>
+              <option value="PANEER">Paneer</option>
+              <option value="GHEE">Ghee</option>
+              <option value="SWEETS">Sweets</option>
+              <option value="OTHER">Other</option>
+            </select>
+
+            <select
+              value={productStatusFilter}
+              onChange={(e) => setProductStatusFilter(e.target.value)}
+              className="flex-1 md:flex-initial px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 font-medium focus:outline-none focus:ring-2 focus:ring-nandini-blue"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active Only</option>
+              <option value="INACTIVE">Inactive Only</option>
+            </select>
           </div>
         </div>
 
-        {/* Product Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map((p) => (
-            <div key={p.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 hover:shadow-md transition">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  {p.image_url ? (
-                    <img
-                      src={p.image_url}
-                      alt={p.name}
-                      className="w-14 h-14 rounded-xl object-cover border border-slate-200 shadow-xs bg-slate-50 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-nandini-blue border border-blue-100 flex items-center justify-center font-bold shadow-xs shrink-0">
-                      <ProductIcon iconName={p.icon || (p.category === 'MILK' ? 'Milk' : 'Droplets')} className="w-6 h-6" />
+        {/* Products Grid */}
+        {filteredProducts.length === 0 ? (
+          <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+            <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto" />
+            <h4 className="font-bold text-slate-700 text-sm">No products found</h4>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              {productSearch || productCategoryFilter !== 'ALL' || productStatusFilter !== 'ALL'
+                ? 'Try adjusting your search query or filters to find products.'
+                : 'Click "+ Add Product" above to create your first shop product.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProducts.map((p) => {
+              return (
+                <div
+                  key={p.id}
+                  className={`bg-white rounded-3xl p-5 border transition shadow-xs flex flex-col justify-between space-y-4 ${
+                    p.active ? 'border-slate-200 hover:border-slate-300' : 'border-slate-200 opacity-60 bg-slate-50/60'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      {/* Product Image */}
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <ShoppingBag className="w-6 h-6 text-slate-400" />
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(p)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                          title="Edit product"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(p)}
+                          className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition"
+                          title="Deactivate / Delete product"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base leading-snug">{p.name}</h3>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      Category: <span className="font-semibold text-slate-700">{p.category}</span> • Size: {p.packet_size_ml}ml
+
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                          {p.product_code}
+                        </span>
+                        <span className="text-[11px] font-bold text-nandini-blue uppercase">
+                          {p.category}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-base mt-1 line-clamp-1">{p.name}</h4>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Pack size: {p.unit || `${p.packet_size_ml}ml`} ({p.packet_size_ml} ml/g)
+                      </p>
+                    </div>
+
+                    <div className="pt-1">
+                      <span
+                        className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          p.delivery_charge_applicable
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        <Truck className="w-3 h-3" />
+                        <span>
+                          {p.delivery_charge_applicable ? 'Delivery Charge: YES' : 'Delivery Charge: NO (₹0)'}
+                        </span>
+                      </span>
                     </div>
                   </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Selling Price</div>
+                      <div className="text-lg font-black text-slate-900">₹{p.price.toFixed(2)}</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(p)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 ${
+                        p.active
+                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      }`}
+                    >
+                      {p.active ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Active</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Inactive</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                  ACTIVE
-                </span>
-              </div>
+              );
+            })}
+          </div>
+        )}
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-slate-500">Unit Price</div>
-                  <div className="text-2xl font-extrabold text-slate-900">₹{p.price.toFixed(2)}</div>
+      </main>
+
+      {/* Add / Edit Product Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-nandini-blue flex items-center justify-center font-bold">
+                  <Package className="w-4 h-4" />
                 </div>
-
-                <div className="flex items-center space-x-1.5">
-                  <button
-                    onClick={() => openEditModal(p)}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleDeleteProduct(p)}
-                    title="Delete Product"
-                    className="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded-lg transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Add / Edit Product Modal */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-lg font-bold text-slate-900">
-                  {editingProduct ? 'Edit Product Details' : 'Add New Product'}
+                <h3 className="text-base font-black text-slate-900">
+                  {editingProduct ? `Edit: ${editingProduct.name}` : 'Add New Product'}
                 </h3>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3 rounded-xl text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProduct} className="space-y-4 text-xs sm:text-sm">
+              {/* Image Upload */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                  Product Image (Optional)
+                </label>
+                <div className="flex items-center space-x-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                  <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                    {formImageUrl ? (
+                      <img src={formImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-7 h-7 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-nandini-blue text-slate-700 rounded-xl font-bold text-xs cursor-pointer shadow-2xs transition">
+                      <Upload className="w-3.5 h-3.5 text-nandini-blue" />
+                      <span>{formImageUrl ? 'Change Photo' : 'Upload Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {formImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormImageUrl('')}
+                        className="block text-[11px] text-rose-600 hover:underline font-semibold"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                    <p className="text-[10px] text-slate-400">PNG, JPG or WEBP up to 2MB</p>
+                  </div>
+                </div>
               </div>
 
-              <form onSubmit={handleSaveProduct} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Product Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="e.g. Special Toned Milk 1L"
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Product Name</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Category</label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => {
+                      setFormCategory(e.target.value);
+                      if (e.target.value === 'MILK' || e.target.value === 'CURD') {
+                        setFormDeliveryChargeApplicable(true);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-nandini-blue focus:outline-none bg-white font-medium"
+                  >
+                    <option value="MILK">Milk</option>
+                    <option value="CURD">Curd</option>
+                    <option value="BUTTERMILK">Buttermilk</option>
+                    <option value="PANEER">Paneer</option>
+                    <option value="GHEE">Ghee</option>
+                    <option value="SWEETS">Sweets</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Unit / Volume</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Nandini Curd 500g"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                    value={formUnit}
+                    onChange={(e) => {
+                      setFormUnit(e.target.value);
+                      if (e.target.value.includes('500')) setFormPacketSizeMl(500);
+                      else if (e.target.value.includes('1L') || e.target.value.includes('1000')) setFormPacketSizeMl(1000);
+                      else if (e.target.value.includes('200')) setFormPacketSizeMl(200);
+                    }}
+                    placeholder="e.g. 1L, 500ml, 200g, 500g"
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pack Size (ml or g)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={formPacketSizeMl}
+                    onChange={(e) => setFormPacketSizeMl(parseInt(e.target.value, 10) || 1000)}
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-nandini-blue focus:outline-none font-semibold"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
-                    <select
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value as ProductCategory)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
-                    >
-                      <option value="MILK">MILK</option>
-                      <option value="CURD">CURD</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Packet Size (ml)</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="500 or 1000"
-                      value={formSize}
-                      onChange={(e) => setFormSize(parseInt(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Unit Price (₹)</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Selling Price (₹) *</label>
                   <input
                     type="number"
                     step="0.5"
+                    min="0.5"
                     required
-                    placeholder="e.g. 24"
                     value={formPrice}
                     onChange={(e) => setFormPrice(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-nandini-blue focus:outline-none"
+                    placeholder="e.g. 48"
+                    className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-nandini-blue focus:outline-none font-black text-slate-900"
                   />
                 </div>
+              </div>
 
-                {/* Product Image Upload / URL */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-700">Product Image (Optional)</label>
-                  <div className="flex items-center space-x-3">
-                    {formImageUrl ? (
-                      <div className="relative w-16 h-16 rounded-xl border border-slate-200 overflow-hidden shrink-0 group">
-                        <img src={formImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setFormImageUrl('')}
-                          className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-xs font-semibold"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0">
-                        <ImageIcon className="w-6 h-6" />
-                      </div>
-                    )}
-
-                    <div className="flex-1 space-y-1.5">
-                      <label className="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition">
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Image File</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      <input
-                        type="url"
-                        placeholder="Or paste image URL (e.g. https://...)"
-                        value={formImageUrl}
-                        onChange={(e) => setFormImageUrl(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-nandini-blue focus:outline-none"
-                      />
-                    </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                <label className="flex items-start space-x-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formDeliveryChargeApplicable}
+                    onChange={(e) => setFormDeliveryChargeApplicable(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-nandini-blue rounded-sm focus:ring-nandini-blue"
+                  />
+                  <div className="text-xs text-slate-700">
+                    <span className="font-bold block">Apply Delivery Charge</span>
+                    <span className="text-[11px] text-slate-500">Calculate delivery charges for house customers based on volume</span>
                   </div>
-                </div>
+                </label>
+              </div>
 
-                {/* Product Icon Selection */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Or Select Fallback Vector Icon
-                  </label>
-                  <div className="grid grid-cols-5 gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
-                    {AVAILABLE_ICONS.map((item) => {
-                      const IconComp = item.Icon;
-                      const isSelected = formIcon === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setFormIcon(item.id)}
-                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition ${
-                            isSelected
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-300'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          <IconComp className="w-4 h-4 mb-1" />
-                          <span className="text-[10px] font-medium truncate w-full text-center">{item.label}</span>
-                        </button>
-                      );
-                    })}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formActive}
+                    onChange={(e) => setFormActive(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500"
+                  />
+                  <div className="text-xs text-slate-700">
+                    <span className="font-bold block">Product is Active</span>
+                    <span className="text-[11px] text-slate-500">Active products appear for customer subscriptions and delivery.</span>
                   </div>
-                </div>
+                </label>
+              </div>
 
-                <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 text-xs font-semibold bg-nandini-blue hover:bg-blue-800 text-white rounded-lg shadow-xs"
-                  >
-                    {editingProduct ? 'Save Changes' : 'Create Product'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-nandini-blue text-white font-bold rounded-xl text-xs hover:bg-blue-800 shadow-sm transition flex items-center space-x-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Product</span>
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </Navigation>
   );
 }

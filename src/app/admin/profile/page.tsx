@@ -26,7 +26,6 @@ export default function AgencyProfilePage() {
   const [profile, setProfile] = useState<AgencyProfile>({
     business_name: 'Nandini Milk Parlour',
     phone: '7022754524',
-    gstin: '',
     email: 'maheshgultedar545@gmail.com',
     account_beginning_date: '2026-07-27',
     business_type: 'Distributor',
@@ -135,13 +134,13 @@ export default function AgencyProfilePage() {
           <div>
             <div className="flex items-center space-x-2 text-nandini-blue font-bold text-xs uppercase tracking-wider">
               <Building className="w-4 h-4" />
-              <span>Agency Profile & Invoice Header</span>
+              <span>Shop Profile & Bill Header</span>
             </div>
             <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">
-              {isEditing ? 'Edit Profile' : 'Business Profile & Settings'}
+              {isEditing ? 'Edit Profile' : 'Shop Profile & Settings'}
             </h1>
             <p className="text-xs text-slate-500">
-              Manage official agency details, logo, GSTIN, address, and signature for generated bills
+              Manage official shop details, logo, contact address, and signature for generated bills
             </p>
           </div>
 
@@ -181,7 +180,7 @@ export default function AgencyProfilePage() {
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                 <div className="w-24 h-24 rounded-2xl bg-white p-2 flex items-center justify-center shrink-0 shadow-lg border-2 border-nandini-blue overflow-hidden">
                   {profile.logo_url ? (
-                    <img src={profile.logo_url} alt="Agency Logo" className="w-full h-full object-cover rounded-xl" />
+                    <img src={profile.logo_url} alt="Shop Logo" className="w-full h-full object-cover rounded-xl" />
                   ) : (
                     <div className="text-center">
                       <Milk className="w-10 h-10 text-nandini-blue mx-auto" />
@@ -192,7 +191,7 @@ export default function AgencyProfilePage() {
 
                 <div className="text-center sm:text-left space-y-1">
                   <span className="inline-block px-2.5 py-0.5 bg-blue-500/20 text-blue-300 rounded text-[10px] font-bold uppercase tracking-widest">
-                    {profile.business_type || 'Distributor'} • {profile.business_category || 'Dairy Farm Products'}
+                    {profile.business_type || 'Parlour'} • {profile.business_category || 'Dairy Products'}
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-white">{profile.business_name || 'Nandini Milk Parlour'}</h2>
                   <p className="text-xs text-slate-300 flex flex-wrap items-center justify-center sm:justify-start gap-3">
@@ -217,16 +216,12 @@ export default function AgencyProfilePage() {
                   Business Identification
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[11px]">Business Name</span>
+                  <span className="text-slate-500 block text-[11px]">Shop Name</span>
                   <span className="font-bold text-slate-900 text-sm">{profile.business_name}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[11px]">Contact Phone</span>
                   <span className="font-mono font-semibold text-slate-800">{profile.phone}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">GSTIN</span>
-                  <span className="font-mono font-semibold text-slate-800">{profile.gstin || 'Not Specified (Optional)'}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[11px]">Account Books Beginning Date</span>
@@ -307,7 +302,7 @@ export default function AgencyProfilePage() {
               <div className="relative group">
                 <div className="w-24 h-24 rounded-full border-2 border-nandini-blue flex items-center justify-center bg-blue-50 overflow-hidden shadow-xs">
                   {profile.logo_url ? (
-                    <img src={profile.logo_url} alt="Agency Logo" className="w-full h-full object-cover" />
+                    <img src={profile.logo_url} alt="Shop Logo" className="w-full h-full object-cover" />
                   ) : (
                     <div className="text-center p-2">
                       <Milk className="w-10 h-10 text-nandini-blue mx-auto" />
@@ -323,7 +318,7 @@ export default function AgencyProfilePage() {
 
               <div>
                 <h2 className="text-base font-bold text-slate-900">{profile.business_name || 'Nandini Milk Parlour'}</h2>
-                <p className="text-xs text-slate-500">Agency Business Profile & Invoice Details</p>
+                <p className="text-xs text-slate-500">Shop Business Profile & Bill Details</p>
               </div>
             </div>
 
@@ -332,11 +327,11 @@ export default function AgencyProfilePage() {
 
               {/* Column 1: Business Details */}
               <div className="space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">Business Details</h3>
+                <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">Shop Details</h3>
 
                 <div>
                   <label className="block font-medium text-slate-700 text-xs mb-1">
-                    Business Name<span className="text-rose-500">*</span>
+                    Shop Name<span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -354,20 +349,6 @@ export default function AgencyProfilePage() {
                     required
                     value={profile.phone}
                     onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-medium focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center space-x-1 mb-1">
-                    <label className="block font-medium text-slate-600 text-xs">GSTIN</label>
-                    <Info className="w-3 h-3 text-slate-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={profile.gstin || ''}
-                    onChange={(e) => setProfile({ ...profile, gstin: e.target.value })}
-                    placeholder="Enter GSTIN"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-medium focus:ring-2 focus:ring-blue-100 focus:outline-none"
                   />
                 </div>

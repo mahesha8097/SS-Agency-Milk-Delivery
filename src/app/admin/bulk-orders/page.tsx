@@ -101,10 +101,10 @@ export default function AdminBulkOrdersPage() {
       name: customer.name,
       establishment_type: customer.establishment_type || 'Hotel',
       phone: customer.phone,
-      house_number: customer.house_number,
-      location: customer.location,
-      route_id: customer.route_id,
-      delivery_boy_id: customer.delivery_boy_id,
+      house_number: customer.house_number || '',
+      location: customer.location || '',
+      route_id: customer.route_id || '',
+      delivery_boy_id: customer.delivery_boy_id || customer.assigned_delivery_boy_id || '',
       payment_type: customer.payment_type,
       bulk_billing_cycle: currentCycle,
       notes: customer.notes || '',
@@ -125,25 +125,30 @@ export default function AdminBulkOrdersPage() {
       .filter(([_, qty]) => qty > 0)
       .map(([prodId, qty]) => ({ productId: prodId, defaultPackets: qty }));
 
-    const savedCustomer = store.saveCustomer(
-      {
-        id: editingId || undefined,
-        name: formData.name,
-        phone: formData.phone,
-        house_number: formData.house_number || 'Main Gate',
-        location: formData.location || 'City Area',
-        route_id: formData.route_id,
-        delivery_boy_id: formData.delivery_boy_id,
-        payment_type: formData.bulk_billing_cycle === 'WEEKLY' ? 'WEEKLY' : formData.payment_type,
-        customer_category: 'BULK_ORDER',
-        establishment_type: formData.establishment_type,
-        is_bulk_order: true,
-        bulk_billing_cycle: formData.bulk_billing_cycle,
-        status: 'ACTIVE',
-        notes: formData.notes,
-      },
-      productReqs
-    );
+    const savedCustomer = store.saveCustomer({
+      id: editingId || undefined,
+      name: formData.name,
+      phone: formData.phone,
+      house_number: formData.house_number || 'Main Gate',
+      location: formData.location || 'City Area',
+      route_id: formData.route_id,
+      delivery_boy_id: formData.delivery_boy_id,
+      payment_type: formData.bulk_billing_cycle === 'WEEKLY' ? 'WEEKLY' : formData.payment_type,
+      customer_category: 'BULK_ORDER',
+      customer_type: 'BULK',
+      establishment_type: formData.establishment_type,
+      is_bulk_order: true,
+      bulk_billing_cycle: formData.bulk_billing_cycle,
+      status: 'ACTIVE',
+      notes: formData.notes,
+    });
+
+    // Save product requirements
+    if (savedCustomer) {
+      productReqs.forEach((req) => {
+        store.setCustomerProductRequirement(savedCustomer.id, req.productId, req.defaultPackets);
+      });
+    }
 
     setShowModal(false);
     reloadData();
@@ -160,7 +165,7 @@ export default function AdminBulkOrdersPage() {
     const matchesSearch =
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.phone.includes(searchTerm) ||
-      c.location.toLowerCase().includes(searchTerm);
+      (c.location || '').toLowerCase().includes(searchTerm);
     const matchesType =
       typeFilter === 'ALL' || c.establishment_type === typeFilter;
     const customerCycle =
@@ -304,7 +309,7 @@ export default function AdminBulkOrdersPage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Truck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{routeMap.get(cust.route_id) || 'Unassigned Route'}</span>
+                        <span>{(cust.route_id && routeMap.get(cust.route_id)) || 'Unassigned Route'}</span>
                       </div>
                     </div>
 

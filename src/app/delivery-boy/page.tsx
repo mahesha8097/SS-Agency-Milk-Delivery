@@ -24,6 +24,7 @@ import {
   Calendar as CalendarIcon,
   Copy,
   Info,
+  ShoppingBag,
 } from 'lucide-react';
 
 export default function DeliveryBoyPage() {
@@ -84,8 +85,8 @@ export default function DeliveryBoyPage() {
     return customers.filter(
       (c) =>
         c.name.toLowerCase().includes(term) ||
-        c.house_number.toLowerCase().includes(term) ||
-        c.location.toLowerCase().includes(term) ||
+        (c.house_number && c.house_number.toLowerCase().includes(term)) ||
+        (c.location && c.location.toLowerCase().includes(term)) ||
         c.customer_code.toLowerCase().includes(term) ||
         c.phone.includes(term)
     );
@@ -629,10 +630,19 @@ export default function DeliveryBoyPage() {
                             key={p.id}
                             className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between text-xs hover:border-slate-300 transition"
                           >
-                            <div>
-                              <div className="font-bold text-slate-900 text-sm">{p.name}</div>
-                              <div className="text-[11px] text-slate-500">
-                                ₹{p.price}/pkt • {p.category === 'MILK' ? `${p.packet_size_ml}ml Milk` : 'Curd'}
+                            <div className="flex items-center space-x-2.5">
+                              <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {p.image_url ? (
+                                  <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <ShoppingBag className="w-4 h-4 text-slate-400" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 text-sm">{p.name}</div>
+                                <div className="text-[11px] text-slate-500">
+                                  ₹{p.price}/pkt • {p.category === 'MILK' ? `${p.packet_size_ml}ml Milk` : p.category}
+                                </div>
                               </div>
                             </div>
 
@@ -898,11 +908,20 @@ export default function DeliveryBoyPage() {
                     <div
                       key={p.id}
                       onClick={() => handleAddExtraProduct(p.id)}
-                      className="p-2.5 rounded-lg border border-slate-200 hover:border-nandini-blue hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs transition"
+                      className="p-2.5 rounded-xl border border-slate-200 hover:border-nandini-blue hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs transition"
                     >
-                      <div>
-                        <div className="font-bold text-slate-900">{p.name}</div>
-                        <div className="text-[11px] text-slate-500">₹{p.price} / packet</div>
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <ShoppingBag className="w-4 h-4 text-slate-400" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900">{p.name}</div>
+                          <div className="text-[11px] text-slate-500">₹{p.price} • {p.unit || `${p.packet_size_ml}ml`}</div>
+                        </div>
                       </div>
                       <span className="text-nandini-blue font-bold text-xs flex items-center space-x-1">
                         <Plus className="w-3.5 h-3.5" />

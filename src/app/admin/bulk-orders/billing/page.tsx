@@ -87,15 +87,11 @@ export default function AdminBulkOrdersBillingPage() {
   }, [selectedMonth, selectedWeek, billingPeriod]);
 
   const handleGenerateBulkBills = () => {
-    const generated = store.generateBulkBills(
-      billingPeriod,
-      selectedMonth,
-      selectedWeek
-    );
+    const result = store.generateMonthlyBills(selectedMonth);
     alert(
-      `Successfully generated ${generated.length} bulk ${
-        billingPeriod === 'WEEKLY' ? `Week ${selectedWeek}` : 'Monthly'
-      } invoices!`
+      `Successfully generated ${result.created} new bills (${result.updated} updated) for ${
+        billingPeriod === 'WEEKLY' ? `Week ${selectedWeek}` : selectedMonth
+      }!`
     );
     reload();
   };
@@ -373,7 +369,7 @@ export default function AdminBulkOrdersBillingPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
             <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full p-4 space-y-3 max-h-[96vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200 no-print">
-                <h3 className="font-bold text-slate-900 text-base">Bulk Tax Invoice Preview (1 Sheet Print)</h3>
+                <h3 className="font-bold text-slate-900 text-base">Bulk Order Bill Preview (1 Sheet Print)</h3>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={handlePrintInvoice}
@@ -388,16 +384,16 @@ export default function AdminBulkOrdersBillingPage() {
                 </div>
               </div>
 
-              {/* Boxed Tax Invoice Container */}
+              {/* Boxed Bill Container */}
               <div className="printable-invoice border-2 border-slate-900 rounded-none bg-white text-slate-900 text-xs font-sans">
                 {/* Top Header Title */}
                 <div className="text-center font-bold uppercase tracking-wider py-1 border-b border-slate-900 bg-slate-50 text-xs">
-                  Tax Invoice — Commercial Bulk Order
+                  Monthly Statement — Commercial Bulk Order
                 </div>
 
                 {/* Main Header Grid */}
                 <div className="grid grid-cols-12 border-b border-slate-900">
-                  {/* Agency Details Left */}
+                  {/* Shop Details Left */}
                   <div className="col-span-8 p-3 flex items-start space-x-3 border-r border-slate-900">
                     <div className="w-16 h-16 shrink-0 rounded-full border border-nandini-blue flex items-center justify-center bg-blue-50 overflow-hidden">
                       {agencyProfile?.logo_url ? (
@@ -418,10 +414,7 @@ export default function AdminBulkOrdersBillingPage() {
                         {agencyProfile?.address || 'SHOP NO.1,37/A, HCS GALLERIA COMPLEX, KOTE, BANGALORE RURAL DIST.'}
                       </p>
                       <p className="text-[10px] text-slate-700">
-                        Phone: <b className="font-mono">{agencyProfile?.phone || '7022754524'}</b> | Email: <b>{agencyProfile?.email || 'maheshgultedar545@gmail.com'}</b>
-                      </p>
-                      <p className="text-[10px] text-slate-800 font-bold">
-                        GSTIN: <span className="font-mono">{agencyProfile?.gstin || '29FBWPD7245C1ZA'}</span> | State: {agencyProfile?.state ? `29-${agencyProfile.state}` : '29-Karnataka'}
+                        Phone: <b className="font-mono">{agencyProfile?.phone || '7022754524'}</b> | Email: <b>{agencyProfile?.email || 'admin@nandinimilk.com'}</b>
                       </p>
                     </div>
                   </div>
