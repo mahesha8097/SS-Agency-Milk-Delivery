@@ -46,47 +46,7 @@ export function generateUUID(): string {
 
 const DEFAULT_ADMIN_ID = '30000000-0000-0000-0000-000000000001';
 
-export const INITIAL_USERS: AppUser[] = [
-  {
-    id: DEFAULT_ADMIN_ID,
-    admin_id: DEFAULT_ADMIN_ID,
-    name: 'S.S Agency Admin',
-    phone: '7022754524',
-    role: 'ADMIN',
-    status: 'ACTIVE',
-    username: 'admin',
-    password: 'admin123', // Will be hashed during migration/init
-    mobile_verified: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '30000000-0000-0000-0000-000000000002',
-    admin_id: DEFAULT_ADMIN_ID,
-    name: 'Delivery Boy 1 (Ramesh)',
-    phone: '9876543211',
-    role: 'DELIVERY_BOY',
-    status: 'ACTIVE',
-    username: 'boy1',
-    password: 'boy123',
-    mobile_verified: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '30000000-0000-0000-0000-000000000003',
-    admin_id: DEFAULT_ADMIN_ID,
-    name: 'Delivery Boy 2 (Suresh)',
-    phone: '9876543212',
-    role: 'DELIVERY_BOY',
-    status: 'ACTIVE',
-    username: 'boy2',
-    password: 'boy223',
-    mobile_verified: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+export const INITIAL_USERS: AppUser[] = [];
 
 export const INITIAL_PRODUCTS: Product[] = [
   { id: '20000000-0000-0000-0000-000000000001', admin_id: DEFAULT_ADMIN_ID, product_code: 'BM1', name: 'Blue Milk 1L', category: 'MILK', packet_size_ml: 1000, unit: '1L', price: 44, delivery_charge_applicable: true, active: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
@@ -195,7 +155,7 @@ class Store {
     },
     agencyProfile: INITIAL_AGENCY_PROFILE,
     auditLogs: [],
-    currentUser: INITIAL_USERS[0],
+    currentUser: null,
   };
 
   private listeners: Set<() => void> = new Set();
@@ -337,14 +297,16 @@ class Store {
         (cleanPhone.length >= 10 && u.phone?.replace(/\D/g, '') === cleanPhone)
     );
 
-    // If not found in local cache and Supabase is configured, check Supabase cloud database
-    if (!user && isSupabaseConfigured()) {
+    // Always check Supabase cloud database to fetch latest account data
+    if (isSupabaseConfigured()) {
       try {
-        const { data: cloudUsers, error } = await supabase
-          .from('users')
-          .select('*')
-          .or(`username.ilike.${cleanInput},phone.eq.${cleanPhone.length >= 10 ? cleanPhone : 'NONE'}`)
-          .limit(1);
+        let query = supabase.from('users').select('*');
+        if (cleanPhone.length >= 10) {
+          query = query.or(`username.ilike.${cleanInput},phone.eq.${cleanPhone}`);
+        } else {
+          query = query.ilike('username', cleanInput);
+        }
+        const { data: cloudUsers, error } = await query.limit(1);
 
         if (!error && cloudUsers && cloudUsers.length > 0) {
           const cloudUser = cloudUsers[0];
@@ -361,7 +323,6 @@ class Store {
             created_at: cloudUser.created_at || new Date().toISOString(),
             updated_at: cloudUser.updated_at || new Date().toISOString(),
           };
-          // Cache locally
           const existingIdx = this.data.users.findIndex((u) => u.id === user!.id);
           if (existingIdx >= 0) {
             this.data.users[existingIdx] = user;
@@ -376,7 +337,7 @@ class Store {
     }
 
     if (!user || user.status === 'INACTIVE') {
-      return { success: false, message: 'Invalid username/mobile or password. If you registered on another device, please ensure database sync is complete or use the Admin credentials.' };
+      return { success: false, message: 'Invalid username/mobile or password.' };
     }
 
     const isMatch = await verifyPassword(passwordInput, user.password);
