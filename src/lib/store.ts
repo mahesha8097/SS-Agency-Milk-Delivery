@@ -263,8 +263,35 @@ class Store {
         }
         this.saveToStorage();
       }
+      this.syncUsersToCloud();
     } catch (e) {
       console.error('Failed to load local store', e);
+    }
+  }
+
+  public async syncUsersToCloud() {
+    if (!isSupabaseConfigured() || typeof window === 'undefined') return;
+    try {
+      for (const u of this.data.users) {
+        await supabase.from('users').upsert(
+          {
+            id: u.id,
+            admin_id: u.role === 'ADMIN' ? null : (u.admin_id || null),
+            name: u.name,
+            phone: u.phone,
+            role: u.role,
+            status: u.status || 'ACTIVE',
+            username: u.username,
+            password_hash: u.password,
+            mobile_verified: u.mobile_verified ?? true,
+            created_at: u.created_at || new Date().toISOString(),
+            updated_at: u.updated_at || new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+      }
+    } catch (e) {
+      console.warn('Background user cloud sync error:', e);
     }
   }
 

@@ -292,6 +292,14 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 -- -------------------------------------------------------------------------
 -- POLICIES: users Table
 -- -------------------------------------------------------------------------
+CREATE POLICY "Allow public login lookup on users"
+  ON users FOR SELECT TO anon, authenticated
+  USING (status = 'ACTIVE');
+
+CREATE POLICY "Allow public registration insert on users"
+  ON users FOR INSERT TO anon, authenticated
+  WITH CHECK (true);
+
 CREATE POLICY "Admin full access to own tenant users"
   ON users FOR ALL TO authenticated
   USING (admin_id = current_admin_id() OR id = current_user_id())
