@@ -304,15 +304,52 @@ class Store {
     const cleanInput = usernameOrMobile.trim().toLowerCase();
     const cleanPhone = usernameOrMobile.replace(/\D/g, '');
 
-    const user = this.data.users.find(
+    let user = this.data.users.find(
       (u) =>
         u.username?.trim().toLowerCase() === cleanInput ||
         (cleanPhone.length >= 10 && u.phone?.replace(/\D/g, '') === cleanPhone)
     );
 
+    // If not found in local cache and Supabase is configured, check Supabase cloud database
+    if (!user && isSupabaseConfigured()) {
+      try {
+        const { data: cloudUsers, error } = await supabase
+          .from('users')
+          .select('*')
+          .or(`username.ilike.${cleanInput},phone.eq.${cleanPhone.length >= 10 ? cleanPhone : 'NONE'}`)
+          .limit(1);
+
+        if (!error && cloudUsers && cloudUsers.length > 0) {
+          const cloudUser = cloudUsers[0];
+          user = {
+            id: cloudUser.id,
+            admin_id: cloudUser.admin_id || cloudUser.id,
+            name: cloudUser.name,
+            phone: cloudUser.phone,
+            role: cloudUser.role,
+            status: cloudUser.status || 'ACTIVE',
+            username: cloudUser.username,
+            password: cloudUser.password_hash || cloudUser.password,
+            mobile_verified: cloudUser.mobile_verified ?? true,
+            created_at: cloudUser.created_at || new Date().toISOString(),
+            updated_at: cloudUser.updated_at || new Date().toISOString(),
+          };
+          // Cache locally
+          const existingIdx = this.data.users.findIndex((u) => u.id === user!.id);
+          if (existingIdx >= 0) {
+            this.data.users[existingIdx] = user;
+          } else {
+            this.data.users.push(user);
+          }
+          this.saveToStorage();
+        }
+      } catch (e) {
+        console.warn('Could not query Supabase cloud for user:', e);
+      }
+    }
+
     if (!user || user.status === 'INACTIVE') {
-      // Generic secure error message to prevent enumeration
-      return { success: false, message: 'Invalid username/mobile or password.' };
+      return { success: false, message: 'Invalid username/mobile or password. If you registered on another device, please ensure database sync is complete or use the Admin credentials.' };
     }
 
     const isMatch = await verifyPassword(passwordInput, user.password);
@@ -341,9 +378,6 @@ class Store {
     });
 
     if (user) {
-      if (password && user.password && user.password !== password && !user.password.startsWith('admin') && !user.password.startsWith('boy')) {
-        // Password hash check
-      }
       this.data.currentUser = user;
       this.notify();
       return user;
@@ -399,6 +433,27 @@ class Store {
     };
 
     this.data.users.push(newAdmin);
+
+    // Sync to Supabase cloud users table if configured
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('users').insert({
+          id: newAdminId,
+          admin_id: null,
+          name: fullName.trim(),
+          phone: cleanPhone,
+          role: 'ADMIN',
+          status: 'ACTIVE',
+          username: cleanUsername,
+          password_hash: passwordHash,
+          mobile_verified: true,
+          created_at: newAdmin.created_at,
+          updated_at: newAdmin.updated_at,
+        });
+      } catch (e) {
+        console.warn('Could not sync newly registered user to Supabase:', e);
+      }
+    }
 
     // Initialize Default Shop Settings for new Admin
     const adminShopName = shopName?.trim() || `${fullName}'s Nandini Milk Parlour`;
